@@ -47,93 +47,31 @@ import {
   CallSignalData,
 } from './lib/callSignaling';
 
-const CALL_LOGS_STORAGE_KEY = 'chatapp_call_logs_v1';
+const CALL_LOGS_STORAGE_KEY = 'chatapp_call_logs_v2';
 
-const initialCallLogs: CallLog[] = [
-  {
-    id: 'call-1',
-    contact: {
-      id: 'c1',
-      name: 'Tom',
-      username: '@tom_dev',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-      status: 'online',
-    },
-    type: 'incoming',
-    callType: 'video',
-    timestamp: 'Today, 10:42 AM',
-    duration: '4m 12s',
-  },
-  {
-    id: 'call-2',
-    contact: {
-      id: 'c2',
-      name: 'Emma Watson',
-      username: '@emma_w',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-      status: 'offline',
-      lastSeen: 'Active 15m ago',
-    },
-    type: 'missed',
-    callType: 'audio',
-    timestamp: 'Today, 09:12 AM',
-  },
-  {
-    id: 'call-3',
-    contact: {
-      id: 'c3',
-      name: 'Alex Johnson',
-      username: '@alex_tech',
-      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
-      status: 'online',
-    },
-    type: 'outgoing',
-    callType: 'audio',
-    timestamp: 'Yesterday, 8:20 PM',
-    duration: '12m 05s',
-  },
-  {
-    id: 'call-4',
-    contact: {
-      id: 'c4',
-      name: 'Sophia Martinez',
-      username: '@sophia_m',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
-      status: 'online',
-    },
-    type: 'incoming',
-    callType: 'video',
-    timestamp: 'July 29, 4:15 PM',
-    duration: '1m 45s',
-  },
-  {
-    id: 'call-5',
-    contact: {
-      id: 'c5',
-      name: 'Daniel Lee',
-      username: '@dan_lee',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      status: 'offline',
-    },
-    type: 'missed',
-    callType: 'audio',
-    timestamp: 'July 28, 11:30 AM',
-  },
-];
+const initialCallLogs: CallLog[] = [];
 
-const loadCallLogsFromLocalStorage = (): CallLog[] => {
+const loadCallLogsFromLocalStorage = (userId?: string): CallLog[] => {
   try {
-    const data = localStorage.getItem(CALL_LOGS_STORAGE_KEY);
-    if (data) return JSON.parse(data);
+    const key = userId ? `${CALL_LOGS_STORAGE_KEY}_${userId}` : CALL_LOGS_STORAGE_KEY;
+    const data = localStorage.getItem(key) || localStorage.getItem('chatapp_call_logs_v1');
+    if (data) {
+      const parsed: CallLog[] = JSON.parse(data);
+      // Filter out legacy mock call log entries if present in localStorage
+      const mockIds = new Set(['call-1', 'call-2', 'call-3', 'call-4', 'call-5']);
+      const mockNames = new Set(['Tom', 'Emma Watson', 'Alex Johnson', 'Sophia Martinez', 'Daniel Lee']);
+      return parsed.filter(log => !mockIds.has(log.id) && !mockNames.has(log.contact?.name));
+    }
   } catch (e) {
     console.warn('Failed to load call logs:', e);
   }
   return initialCallLogs;
 };
 
-const saveCallLogsToLocalStorage = (logs: CallLog[]) => {
+const saveCallLogsToLocalStorage = (logs: CallLog[], userId?: string) => {
   try {
-    localStorage.setItem(CALL_LOGS_STORAGE_KEY, JSON.stringify(logs));
+    const key = userId ? `${CALL_LOGS_STORAGE_KEY}_${userId}` : CALL_LOGS_STORAGE_KEY;
+    localStorage.setItem(key, JSON.stringify(logs));
   } catch (e) {
     console.warn('Failed to save call logs:', e);
   }
@@ -276,12 +214,18 @@ export default function App() {
   const [typingThreads, setTypingThreads] = useState<Record<string, boolean>>({});
   const [activeCall, setActiveCall] = useState<{ type: 'voice' | 'video'; name: string } | null>(null);
 
-  // Call Logs state with LocalStorage persistence
-  const [callLogs, setCallLogs] = useState<CallLog[]>(() => loadCallLogsFromLocalStorage());
+  // Call Logs state with LocalStorage persistence per user
+  const [callLogs, setCallLogs] = useState<CallLog[]>(() => loadCallLogsFromLocalStorage(currentUser?.id));
 
   useEffect(() => {
-    saveCallLogsToLocalStorage(callLogs);
-  }, [callLogs]);
+    if (currentUser?.id) {
+      setCallLogs(loadCallLogsFromLocalStorage(currentUser.id));
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    saveCallLogsToLocalStorage(callLogs, currentUser?.id);
+  }, [callLogs, currentUser?.id]);
 
   const handleLocalTypingChange = (isTypingVal: boolean) => {
     if (!activeThreadId || !currentUser?.id) return;
@@ -544,6 +488,19 @@ export default function App() {
 
     const unsubscribe = subscribeToIncomingCalls(currentUser, (signal) => {
       setIncomingCallSignal(signal);
+
+      // Dynamically record incoming call log
+      const incomingLog: CallLog = {
+        id: `call-${signal.callId}`,
+        contact: signal.caller,
+        type: 'incoming',
+        callType: signal.type === 'video' ? 'video' : 'audio',
+        timestamp: 'Just now',
+      };
+      setCallLogs((prev) => {
+        if (prev.some((l) => l.id === incomingLog.id)) return prev;
+        return [incomingLog, ...prev];
+      });
     });
     return () => unsubscribe();
   }, [currentUser]);
@@ -614,6 +571,19 @@ export default function App() {
 
   // Decline Incoming Call
   const handleDeclineIncomingCall = async (callId: string) => {
+    if (incomingCallSignal) {
+      const missedLog: CallLog = {
+        id: `call-missed-${callId}`,
+        contact: incomingCallSignal.caller,
+        type: 'missed',
+        callType: incomingCallSignal.type === 'video' ? 'video' : 'audio',
+        timestamp: 'Just now',
+      };
+      setCallLogs((prev) => {
+        const filtered = prev.filter((l) => l.id !== `call-${callId}`);
+        return [missedLog, ...filtered];
+      });
+    }
     await updateCallStatus(callId, 'declined');
     setIncomingCallSignal(null);
   };

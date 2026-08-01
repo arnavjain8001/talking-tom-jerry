@@ -11,48 +11,7 @@ interface NewCallModalProps {
   contactsList?: Contact[];
 }
 
-const SUGGESTED_CONTACTS: Contact[] = [
-  {
-    id: 'c1',
-    name: 'Tom',
-    username: '@tom_dev',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-    status: 'online',
-    lastSeen: 'Active now',
-  },
-  {
-    id: 'c2',
-    name: 'Emma Watson',
-    username: '@emma_w',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-    status: 'offline',
-    lastSeen: 'Active 15m ago',
-  },
-  {
-    id: 'c3',
-    name: 'Alex Johnson',
-    username: '@alex_tech',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
-    status: 'online',
-    lastSeen: 'Active now',
-  },
-  {
-    id: 'c4',
-    name: 'Sophia Martinez',
-    username: '@sophia_m',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
-    status: 'online',
-    lastSeen: 'Active now',
-  },
-  {
-    id: 'c5',
-    name: 'Daniel Lee',
-    username: '@dan_lee',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    status: 'offline',
-    lastSeen: 'Active 2h ago',
-  },
-];
+const SUGGESTED_CONTACTS: Contact[] = [];
 
 export const NewCallModal: React.FC<NewCallModalProps> = ({
   onClose,
