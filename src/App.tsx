@@ -136,57 +136,83 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<{ id?: string; name: string; email: string; avatar: string; username?: string; status?: string } | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-  // Sync with Firebase Auth state
+  // Sync with Firebase Auth state with fail-safe non-blocking loading resolution
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          // Fetch complete profile from Firestore 'users' collection
-          const userDocRef = doc(db, 'users', firebaseUser.uid);
-          const userSnap = await getDoc(userDocRef);
+    let isMounted = true;
 
+    // Safety fallback: Ensure isAuthLoading can never remain true longer than 3 seconds
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
+        setIsAuthLoading(false);
+      }
+    }, 3000);
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (firebaseUser) {
           const defaultUsername = firebaseUser.email
             ? `@${firebaseUser.email.split('@')[0]}`
             : '@user';
 
-          if (userSnap.exists()) {
-            const data = userSnap.data();
-            setCurrentUser({
-              id: firebaseUser.uid,
-              name: data.name || firebaseUser.displayName || 'User',
-              email: data.email || firebaseUser.email || '',
-              avatar: data.avatar || firebaseUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-              username: data.username || defaultUsername,
-              status: data.status || 'online',
-            });
-          } else {
-            setCurrentUser({
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName || 'User',
-              email: firebaseUser.email || '',
-              avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-              username: defaultUsername,
-              status: 'online',
-            });
-          }
-        } catch (error) {
-          console.error('Error fetching Firestore user profile:', error);
-          setCurrentUser({
+          // 1. Immediately set currentUser from Firebase Auth for instant UI rendering
+          const baseUser = {
             id: firebaseUser.uid,
-            name: firebaseUser.displayName || 'User',
+            name: firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User'),
             email: firebaseUser.email || '',
             avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-            username: firebaseUser.email ? `@${firebaseUser.email.split('@')[0]}` : '@user',
+            username: defaultUsername,
             status: 'online',
-          });
+          };
+
+          if (isMounted) {
+            setCurrentUser(baseUser);
+            setIsAuthLoading(false); // Unblock loading screen immediately
+          }
+
+          // 2. Asynchronously enrich user profile from Firestore in background with 2s timeout
+          try {
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userSnap = (await Promise.race([
+              getDoc(userDocRef),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+            ])) as any;
+
+            if (userSnap && userSnap.exists && userSnap.exists()) {
+              const data = userSnap.data();
+              if (isMounted) {
+                setCurrentUser({
+                  id: firebaseUser.uid,
+                  name: data.name || baseUser.name,
+                  email: data.email || baseUser.email,
+                  avatar: data.avatar || baseUser.avatar,
+                  username: data.username || baseUser.username,
+                  status: data.status || 'online',
+                });
+              }
+            }
+          } catch (fsErr) {
+            console.warn('Firestore extended profile fetch deferred:', fsErr);
+          }
+        } else {
+          if (isMounted) {
+            setCurrentUser(null);
+          }
         }
-      } else {
-        setCurrentUser(null);
+      } catch (error) {
+        console.error('Error in onAuthStateChanged handler:', error);
+      } finally {
+        if (isMounted) {
+          setIsAuthLoading(false);
+        }
+        clearTimeout(safetyTimer);
       }
-      setIsAuthLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -1188,7 +1214,10 @@ export default function App() {
   if (!currentUser) {
     return (
       <AuthScreen
-        onLogin={(user) => setCurrentUser(user)}
+        onLogin={(user) => {
+          setCurrentUser(user);
+          setIsAuthLoading(false);
+        }}
         isDarkMode={isDarkMode}
       />
     );
