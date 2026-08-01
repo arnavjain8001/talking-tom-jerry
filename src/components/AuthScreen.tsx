@@ -17,10 +17,43 @@ import {
   signInWithEmailAndPassword,
   signInAnonymously,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   updateProfile,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../lib/firebase';
+import { auth, db, googleProvider, firebaseConfig } from '../lib/firebase';
+
+// Helper to detect if running inside an APK / WebView wrapper or embedded mobile context
+export const isWebViewEnv = (): boolean => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+
+  const ua = (navigator.userAgent || navigator.vendor || (window as any).opera || '').toLowerCase();
+
+  // Native Mobile App wrappers & Bridges (Capacitor, Cordova, React Native, Flutter, Android Native Bridge)
+  const hasNativeBridge = Boolean(
+    (window as any).Capacitor ||
+    (window as any).Cordova ||
+    (window as any).ReactNativeWebView ||
+    (window as any).flutter_inappwebview ||
+    (window as any).Android ||
+    (window as any).webkit?.messageHandlers
+  );
+  if (hasNativeBridge) return true;
+
+  // Android WebView indicators ('wv', 'Version/4.0', or Chrome missing/custom)
+  const isAndroid = ua.includes('android');
+  const isAndroidWebView = isAndroid && (ua.includes('wv') || (ua.includes('version/') && !ua.includes('chrome/')));
+
+  // iOS WebView indicators (iOS device, contains mobile, but lacks Safari)
+  const isIOS = /iphone|ipad|ipod/.test(ua);
+  const isIOSWebView = isIOS && !ua.includes('safari');
+
+  // Generic embedded webview flags (e.g., custom mobile app wrappers, social in-app browsers)
+  const isGenericWebView = /webview|mobileapp|customua|fb_iab|fban|fbav|instagram|line|twitter|micromessenger/i.test(ua);
+
+  return isAndroidWebView || isIOSWebView || isGenericWebView;
+};
 
 interface AuthScreenProps {
   onLogin: (user: { id?: string; name: string; email: string; avatar: string }) => void;
@@ -327,6 +360,48 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, isDarkMode }) =
     }
   };
 
+  // Check for incoming redirect sign-in results (e.g., returning from external browser / redirect flow)
+  useEffect(() => {
+    let isMounted = true;
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!isMounted || !result?.user) return;
+        const user = result.user;
+        const userData = {
+          id: user.uid,
+          name: user.displayName || 'Google User',
+          email: user.email || '',
+          username: `@${(user.email || 'googleuser').split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')}`,
+          avatar: user.photoURL || DEMO_AVATARS[0],
+        };
+
+        if (user.uid) {
+          try {
+            await setDoc(
+              doc(db, 'users', user.uid),
+              {
+                ...userData,
+                createdAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
+          } catch (dbErr) {
+            console.warn('Firestore setDoc warning:', dbErr);
+          }
+        }
+
+        triggerToast(`Signed in as ${userData.name}`);
+        onLogin(userData);
+      })
+      .catch((err) => {
+        console.warn('getRedirectResult error:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [onLogin]);
+
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage('');
@@ -334,34 +409,80 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, isDarkMode }) =
       googleProvider.setCustomParameters({
         prompt: 'select_account',
       });
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
 
-      const userData = {
-        id: user.uid,
-        name: user.displayName || 'Google User',
-        email: user.email || '',
-        username: `@${(user.email || 'googleuser').split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')}`,
-        avatar: user.photoURL || DEMO_AVATARS[0],
-      };
+      const inWebView = isWebViewEnv();
 
-      if (user.uid) {
+      if (inWebView) {
+        console.info('[Auth] Embedded WebView environment detected. Launching OAuth via external browser redirect flow...');
+
+        // In mobile APK / WebView wrappers, force opening the OAuth flow in the device's default external browser
         try {
-          await setDoc(
-            doc(db, 'users', user.uid),
-            {
-              ...userData,
-              createdAt: new Date().toISOString(),
-            },
-            { merge: true }
-          );
-        } catch (dbErr) {
-          console.warn('Firestore setDoc warning:', dbErr);
+          const authDomain = firebaseConfig.authDomain || 'talking-tom-jerry.firebaseapp.com';
+          const targetUrl = `https://${authDomain}`;
+
+          if (typeof window !== 'undefined' && window.open) {
+            // Attempt opening in system default browser via _system or _blank target
+            const openedWindow = window.open(targetUrl, '_system') || window.open(targetUrl, '_blank');
+            if (!openedWindow) {
+              await signInWithRedirect(auth, googleProvider);
+            } else {
+              await signInWithRedirect(auth, googleProvider);
+            }
+          } else {
+            await signInWithRedirect(auth, googleProvider);
+          }
+        } catch (redirectErr) {
+          console.warn('[Auth] WebView redirect auth trigger error:', redirectErr);
+          await signInWithRedirect(auth, googleProvider);
         }
+        return;
       }
 
-      triggerToast(`Signed in as ${userData.name}`);
-      onLogin(userData);
+      // Standard web browser flow
+      try {
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
+
+        const userData = {
+          id: user.uid,
+          name: user.displayName || 'Google User',
+          email: user.email || '',
+          username: `@${(user.email || 'googleuser').split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')}`,
+          avatar: user.photoURL || DEMO_AVATARS[0],
+        };
+
+        if (user.uid) {
+          try {
+            await setDoc(
+              doc(db, 'users', user.uid),
+              {
+                ...userData,
+                createdAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
+          } catch (dbErr) {
+            console.warn('Firestore setDoc warning:', dbErr);
+          }
+        }
+
+        triggerToast(`Signed in as ${userData.name}`);
+        onLogin(userData);
+      } catch (popupErr: any) {
+        console.warn('Google sign-in popup error, attempting redirect fallback:', popupErr);
+        if (
+          popupErr.code === 'auth/popup-blocked' ||
+          popupErr.code === 'auth/operation-not-supported-in-this-environment' ||
+          popupErr.code === 'auth/disallowed_useragent' ||
+          popupErr.message?.includes('popup')
+        ) {
+          await signInWithRedirect(auth, googleProvider);
+        } else if (popupErr.code === 'auth/popup-closed-by-user') {
+          setErrorMessage('Sign in cancelled by user.');
+        } else {
+          throw popupErr;
+        }
+      }
     } catch (err: any) {
       console.warn('Google sign-in error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
