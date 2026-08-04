@@ -57,9 +57,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 isDarkMode ? 'border-slate-900' : 'border-white'
               } ${
                 contact.status === 'online'
-                  ? 'bg-emerald-500'
+                  ? 'bg-emerald-500 ring-2 ring-emerald-500/40 shadow-xs shadow-emerald-500/50 animate-pulse'
                   : 'bg-yellow-400'
               }`}
+              title={contact.status === 'online' ? 'Active Now' : 'Offline / Away'}
             />
           </button>
 

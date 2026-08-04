@@ -23,6 +23,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db, googleProvider, firebaseConfig } from '../lib/firebase';
+import { Spline3DViewer } from './Spline3DViewer';
 
 // Helper to detect if running inside an APK / WebView wrapper or embedded mobile context
 export const isWebViewEnv = (): boolean => {
@@ -525,13 +526,28 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, isDarkMode }) =
         className="absolute bottom-1/6 right-1/4 w-96 h-96 bg-blue-600/30 rounded-full blur-3xl pointer-events-none"
       />
 
-      {/* Main Single Card Container */}
-      <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md rounded-3xl border shadow-2xl overflow-y-auto max-h-[92vh] sm:max-h-[90vh] my-auto backdrop-blur-xl relative z-10 bg-slate-900/85 border-slate-800 text-slate-100 p-6 sm:p-8 space-y-6 shrink-0"
-      >
+      {/* Two-Column Desktop Split Screen / Mobile Vertical Stacked Layout */}
+      <div className="w-full max-w-6xl mx-auto my-auto z-10 flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:gap-12 items-center p-2 sm:p-6">
+        {/* 3D Spline Interactive Canvas Container (Compact Top on Mobile, Full Left Side on Desktop) */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-col justify-center items-center w-full h-[250px] sm:h-[300px] lg:h-[540px] xl:h-[600px] rounded-3xl border border-slate-800/80 bg-slate-900/70 backdrop-blur-2xl shadow-2xl p-2 sm:p-4 relative overflow-hidden shrink-0 group"
+        >
+          {/* Spline 3D Viewer Element */}
+          <div className="w-full h-full relative z-10 flex items-center justify-center">
+            <Spline3DViewer sceneUrl="https://prod.spline.design/GI9x-53r-bo8IqkF/scene.splinecode" />
+          </div>
+        </motion.div>
+
+        {/* Right Column: Sign In / Sign Up Form Container */}
+        <motion.div
+          initial={{ opacity: 0, x: 30, scale: 0.98 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md mx-auto rounded-3xl border shadow-2xl overflow-y-auto max-h-[92vh] sm:max-h-[90vh] backdrop-blur-xl relative z-10 bg-slate-900/85 border-slate-800 text-slate-100 p-6 sm:p-8 space-y-6 shrink-0"
+        >
         {/* Animated Hero Entrance Header with Typewriter Effect */}
         <div className="text-center space-y-3">
           {/* Glowing Animated Icon Badge */}
@@ -821,6 +837,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, isDarkMode }) =
           </button>
         </div>
       </motion.div>
+      </div>
 
       {/* Footer text */}
       <div className="relative z-10 text-center mt-6 text-[11px] text-slate-400 flex items-center justify-center gap-2">

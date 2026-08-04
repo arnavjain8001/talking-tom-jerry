@@ -18,6 +18,7 @@ import { PollModal } from './components/PollModal';
 import { StoriesModal } from './components/StoriesModal';
 import { AddStoryModal } from './components/AddStoryModal';
 import { AuthScreen } from './components/AuthScreen';
+import { Spline3DViewer } from './components/Spline3DViewer';
 import { MessageSquare, MessagesSquare, Sparkles, Phone, Video, Pin, X, Plus } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -1407,35 +1408,9 @@ export default function App() {
               )}
             </div>
           ) : (
-            /* Desktop Welcome Area with Typewriter Animation */
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 dark:bg-slate-900/40 select-none">
-              {/* Premium Chat Web Logo Badge */}
-              <div className="relative mb-8 group cursor-pointer">
-                {/* Glowing Ambient Gradient Background */}
-                <div className="absolute -inset-3 bg-gradient-to-r from-blue-600 via-indigo-500 to-pink-500 rounded-3xl blur-lg opacity-35 group-hover:opacity-60 transition duration-500 animate-pulse" />
-
-                {/* Main Glassmorphism Icon Box */}
-                <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-pink-500 p-1 shadow-2xl shadow-blue-500/25 transition-transform duration-300 group-hover:scale-105">
-                  <div className="w-full h-full bg-white dark:bg-slate-900 rounded-[20px] flex items-center justify-center relative overflow-hidden">
-                    {/* Interior Gradient Accent */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-pink-500/10 dark:from-blue-400/20 dark:to-pink-400/20" />
-
-                    {/* Dual Chat Bubbles Logo Icon */}
-                    <div className="relative flex items-center justify-center">
-                      <MessagesSquare className="w-11 h-11 text-blue-600 dark:text-blue-400 drop-shadow-xs group-hover:rotate-3 transition-transform duration-300" />
-                      <Sparkles className="w-4 h-4 text-amber-400 absolute -top-1 -right-1 animate-pulse" />
-                    </div>
-
-                    {/* Active Pulse Badge */}
-                    <span className="absolute bottom-2 right-2 flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <TypewriterWelcomeText />
+            /* Interactive Spline 3D Scene Integration */
+            <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-6 text-center bg-slate-50/50 dark:bg-slate-900/40 select-none relative h-full w-full overflow-hidden">
+              <Spline3DViewer sceneUrl="https://prod.spline.design/PI9J6Lmm7K93BDVV/scene.splinecode" />
             </div>
           )}
         </main>
