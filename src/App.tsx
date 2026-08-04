@@ -1463,18 +1463,21 @@ export default function App() {
         isOpen={showPollModal}
         isDarkMode={isDarkMode}
         onClose={() => setShowPollModal(false)}
-        onCreatePoll={(poll) => {
+        onCreatePoll={async (poll) => {
           if (!activeThreadId) return;
           const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const currentUserId = currentUser?.id || 'me';
+
           const newMessage: Message = {
             id: `msg-poll-${Date.now()}`,
-            senderId: 'me',
-            text: '',
+            senderId: currentUserId,
+            text: `📊 Poll: ${poll.question}`,
             timestamp: currentTime,
             isMe: true,
             status: 'sent',
             poll,
           };
+
           setThreads((prevThreads) =>
             prevThreads.map((thread) => {
               if (thread.id === activeThreadId) {
@@ -1486,6 +1489,47 @@ export default function App() {
               return thread;
             })
           );
+
+          // Broadcast real-time and save to Firestore
+          if (activeThread?.contact && currentUser?.id) {
+            broadcastMessage({
+              chatId: activeThreadId,
+              message: newMessage,
+              senderProfile: {
+                id: currentUser.id,
+                name: currentUser.name,
+                username: currentUser.username || `@${currentUser.name.toLowerCase().replace(/\s+/g, '')}`,
+                avatar: currentUser.avatar,
+                email: currentUser.email,
+              },
+              receiverId: activeThread.contact.id,
+              receiverUsername: activeThread.contact.username,
+              receiverEmail: activeThread.contact.email,
+              receiverName: activeThread.contact.name,
+            });
+
+            await sendMessageToFirestore(
+              activeThreadId,
+              newMessage,
+              currentUser.id,
+              activeThread.contact.id,
+              {
+                [currentUser.id]: {
+                  id: currentUser.id,
+                  name: currentUser.name,
+                  username: currentUser.username || `@${currentUser.name.toLowerCase().replace(/\s+/g, '')}`,
+                  avatar: currentUser.avatar,
+                },
+                [activeThread.contact.id]: {
+                  id: activeThread.contact.id,
+                  name: activeThread.contact.name,
+                  username: activeThread.contact.username,
+                  avatar: activeThread.contact.avatar,
+                },
+              }
+            );
+          }
+
           setShowPollModal(false);
         }}
       />

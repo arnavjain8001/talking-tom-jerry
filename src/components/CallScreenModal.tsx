@@ -14,6 +14,7 @@ import {
   RefreshCw,
   AlertCircle,
   GripHorizontal,
+  SwitchCamera,
 } from 'lucide-react';
 import { Contact } from '../types';
 import {
@@ -51,6 +52,8 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [hasCameraError, setHasCameraError] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
   const [isMirrored, setIsMirrored] = useState(true);
   const [isSwappedLayout, setIsSwappedLayout] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -451,6 +454,71 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
     }
   };
 
+  // Live Front & Back Camera Switching (WhatsApp / Instagram style)
+  const handleSwitchCamera = async () => {
+    if (type !== 'video' || isSwitchingCamera) return;
+    setIsSwitchingCamera(true);
+
+    const nextFacingMode = facingMode === 'user' ? 'environment' : 'user';
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        // Stop active video track
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getVideoTracks().forEach((track) => track.stop());
+        }
+
+        // Request new stream with updated facing mode
+        let newStream: MediaStream | null = null;
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { exact: nextFacingMode } },
+            audio: false,
+          });
+        } catch (e) {
+          // Fallback if exact facingMode constraint is not strictly supported
+          newStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: nextFacingMode },
+            audio: false,
+          });
+        }
+
+        if (newStream) {
+          const newVideoTrack = newStream.getVideoTracks()[0];
+          if (newVideoTrack && mediaStreamRef.current) {
+            // Remove old video tracks from mediaStreamRef
+            mediaStreamRef.current.getVideoTracks().forEach((track) => {
+              mediaStreamRef.current?.removeTrack(track);
+            });
+            mediaStreamRef.current.addTrack(newVideoTrack);
+
+            // Replace track in WebRTC PeerConnection sender without dropping call
+            if (peerConnectionRef.current) {
+              const senders = peerConnectionRef.current.getSenders();
+              const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
+              if (videoSender) {
+                await videoSender.replaceTrack(newVideoTrack);
+              }
+            }
+
+            // Update local preview element
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = mediaStreamRef.current;
+            }
+
+            setFacingMode(nextFacingMode);
+            // Front camera is mirrored, back camera is un-mirrored
+            setIsMirrored(nextFacingMode === 'user');
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Camera switch error:', err);
+    } finally {
+      setIsSwitchingCamera(false);
+    }
+  };
+
   // Real-Time Synchronized Call Duration Timer
   useEffect(() => {
     const isConnected = callState === 'connected' || callState === 'accepted';
@@ -621,6 +689,17 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
               {isVideoOff ? <VideoOff className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Video className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
             </button>
 
+            {type === 'video' && !isVideoOff && (
+              <button
+                onClick={handleSwitchCamera}
+                disabled={isSwitchingCamera}
+                className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all cursor-pointer"
+                title={`Switch to ${facingMode === 'user' ? 'Back' : 'Front'} Camera`}
+              >
+                <SwitchCamera className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isSwitchingCamera ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+
             <button
               onClick={handleEnd}
               className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-md active:scale-95 transition-all cursor-pointer"
@@ -760,6 +839,17 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
                     muted
                     className={`w-full h-full object-cover ${isMirrored ? 'scale-x-[-1]' : ''}`}
                   />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSwitchCamera();
+                    }}
+                    disabled={isSwitchingCamera}
+                    className="absolute top-2 left-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-pink-600 transition-colors z-30 shadow-md"
+                    title={`Flip Camera (Currently ${facingMode === 'user' ? 'Front' : 'Back'})`}
+                  >
+                    <SwitchCamera className={`w-3.5 h-3.5 ${isSwitchingCamera ? 'animate-spin' : ''}`} />
+                  </button>
                   <div className="absolute top-2 right-2 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity">
                     <RefreshCw className="w-3 h-3" />
                   </div>
@@ -858,6 +948,19 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
           >
             {isScreenSharing ? <MonitorOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Monitor className="w-5 h-5 sm:w-6 sm:h-6" />}
           </button>
+
+          {type === 'video' && !isVideoOff && (
+            <button
+              onClick={handleSwitchCamera}
+              disabled={isSwitchingCamera}
+              className={`p-3.5 sm:p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 transition-all ${
+                isSwitchingCamera ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'
+              }`}
+              title={`Switch to ${facingMode === 'user' ? 'Back' : 'Front'} Camera`}
+            >
+              <SwitchCamera className={`w-5 h-5 sm:w-6 sm:h-6 ${isSwitchingCamera ? 'animate-spin' : ''}`} />
+            </button>
+          )}
 
           {type === 'video' && !isVideoOff && (
             <button
