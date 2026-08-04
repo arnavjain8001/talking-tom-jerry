@@ -559,13 +559,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Navigation Bar (Chats, Calls, & Profile Card) */}
-      <div className={`px-2 sm:px-3 py-2 border-t shrink-0 flex items-center justify-between gap-1 sm:gap-2 z-10 w-full overflow-hidden ${
+      <div className={`px-3 py-2 border-t shrink-0 flex items-center justify-between gap-2 z-10 ${
         isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         {/* Chats Tab Button */}
         <button
           onClick={() => setBottomTab('chats')}
-          className={`relative flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
+          className={`relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer ${
             bottomTab === 'chats'
               ? isDarkMode
                 ? 'bg-blue-950/70 text-blue-400 font-bold'
@@ -576,14 +576,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {bottomTab === 'chats' && (
             <span className="absolute -top-1 w-2 h-2 rounded-full bg-blue-600" />
           )}
-          <MessageSquare className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${bottomTab === 'chats' ? 'fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400' : ''}`} />
-          <span className="text-[11px] sm:text-xs font-semibold tracking-tight">Chats</span>
+          <MessageSquare className={`w-4.5 h-4.5 ${bottomTab === 'chats' ? 'fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400' : ''}`} />
+          <span className="text-[11px] font-semibold tracking-tight">Chats</span>
         </button>
 
         {/* Calls Tab Button */}
         <button
           onClick={() => setBottomTab('calls')}
-          className={`relative flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
+          className={`relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer ${
             bottomTab === 'calls'
               ? isDarkMode
                 ? 'bg-blue-950/70 text-blue-400 font-bold'
@@ -594,18 +594,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {bottomTab === 'calls' && (
             <span className="absolute -top-1 w-2 h-2 rounded-full bg-blue-600" />
           )}
-          <Phone className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${bottomTab === 'calls' ? 'fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400' : ''}`} />
-          <span className="text-[11px] sm:text-xs font-semibold tracking-tight">Calls</span>
+          <Phone className={`w-4.5 h-4.5 ${bottomTab === 'calls' ? 'fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400' : ''}`} />
+          <span className="text-[11px] font-semibold tracking-tight">Calls</span>
         </button>
 
         {/* Profile Card / Widget on Right Side of Calls */}
-        <div className="relative shrink-0" ref={sidebarProfileRef}>
+        <div className="relative" ref={sidebarProfileRef}>
           <button
             onClick={() => setIsSidebarProfileMenuOpen(!isSidebarProfileMenuOpen)}
-            className={`h-9 px-2 sm:px-2.5 pl-1.5 inline-flex items-center gap-1.5 sm:gap-2 rounded-full border transition-all cursor-pointer shadow-2xs shrink-0 max-w-[120px] xs:max-w-[140px] sm:max-w-[180px] ${
+            className={`h-9 px-2.5 pl-1.5 inline-flex items-center gap-2 rounded-full border transition-all cursor-pointer shadow-2xs shrink-0 ${
               isDarkMode
-                ? 'bg-slate-800/90 border-slate-700/80 hover:bg-slate-800 text-slate-100'
-                : 'bg-slate-100/90 border-slate-200/90 hover:bg-slate-200/80 text-slate-800'
+                ? 'bg-slate-800/80 border-slate-700/80 hover:bg-slate-800 text-slate-100'
+                : 'bg-slate-100/80 border-slate-200/90 hover:bg-slate-200/70 text-slate-800'
             }`}
             title="User Profile & Settings"
           >
@@ -622,7 +622,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title={currentUser?.status === 'offline' ? 'Offline' : 'Active'}
               />
             </div>
-            <span className="text-[11px] sm:text-xs font-bold text-slate-900 dark:text-slate-100 max-w-[55px] min-[380px]:max-w-[75px] sm:max-w-[100px] truncate inline-block leading-tight select-none">
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[75px] truncate">
               {currentUser?.name || 'jainarnav'}
             </span>
           </button>
