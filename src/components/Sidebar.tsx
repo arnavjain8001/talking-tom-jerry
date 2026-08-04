@@ -559,71 +559,79 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Navigation Bar (Chats, Calls, & Profile Card) */}
-      <div className={`px-3 py-2 border-t shrink-0 flex items-center justify-between gap-2 z-10 ${
+      <div className={`px-2.5 sm:px-3 py-2 border-t shrink-0 flex items-center justify-between gap-1.5 sm:gap-2 z-10 w-full overflow-hidden ${
         isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         {/* Chats Tab Button */}
         <button
           onClick={() => setBottomTab('chats')}
-          className={`relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+          className={`relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
             bottomTab === 'chats'
               ? isDarkMode
                 ? 'bg-blue-950/70 text-blue-400 font-bold'
                 : 'bg-blue-100/80 text-blue-600 font-bold'
-              : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
           {bottomTab === 'chats' && (
             <span className="absolute -top-1 w-2 h-2 rounded-full bg-blue-600" />
           )}
-          <MessageSquare className={`w-4.5 h-4.5 ${bottomTab === 'chats' ? 'fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400' : ''}`} />
-          <span className="text-[11px] font-semibold tracking-tight">Chats</span>
+          <MessageSquare className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${bottomTab === 'chats' ? 'fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400' : ''}`} />
+          <span className="text-[11px] sm:text-xs font-semibold tracking-tight">Chats</span>
         </button>
 
         {/* Calls Tab Button */}
         <button
           onClick={() => setBottomTab('calls')}
-          className={`relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+          className={`relative flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
             bottomTab === 'calls'
               ? isDarkMode
                 ? 'bg-blue-950/70 text-blue-400 font-bold'
                 : 'bg-blue-100/80 text-blue-600 font-bold'
-              : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
           {bottomTab === 'calls' && (
             <span className="absolute -top-1 w-2 h-2 rounded-full bg-blue-600" />
           )}
-          <Phone className={`w-4.5 h-4.5 ${bottomTab === 'calls' ? 'fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400' : ''}`} />
-          <span className="text-[11px] font-semibold tracking-tight">Calls</span>
+          <Phone className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${bottomTab === 'calls' ? 'fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400' : ''}`} />
+          <span className="text-[11px] sm:text-xs font-semibold tracking-tight">Calls</span>
         </button>
 
         {/* Profile Card / Widget on Right Side of Calls */}
-        <div className="relative" ref={sidebarProfileRef}>
+        <div className="relative shrink-0" ref={sidebarProfileRef}>
           <button
             onClick={() => setIsSidebarProfileMenuOpen(!isSidebarProfileMenuOpen)}
-            className={`h-9 px-2.5 pl-1.5 inline-flex items-center gap-2 rounded-full border transition-all cursor-pointer shadow-2xs shrink-0 ${
+            className={`h-9 px-2 sm:px-2.5 pl-1.5 inline-flex items-center gap-1.5 sm:gap-2 rounded-full border transition-all cursor-pointer shadow-xs shrink-0 max-w-[130px] xs:max-w-[150px] sm:max-w-[180px] ${
               isDarkMode
-                ? 'bg-slate-800/80 border-slate-700/80 hover:bg-slate-800 text-slate-100'
-                : 'bg-slate-100/80 border-slate-200/90 hover:bg-slate-200/70 text-slate-800'
+                ? 'bg-slate-800/90 border-slate-700/80 hover:bg-slate-800 text-slate-100'
+                : 'bg-slate-100/90 border-slate-300/80 hover:bg-slate-200/80 text-slate-900'
             }`}
             title="User Profile & Settings"
           >
-            <div className="relative shrink-0">
-              <img
-                src={currentUser?.avatar || currentUserAvatar}
-                alt={currentUser?.name || "Profile"}
-                className="w-6 h-6 rounded-full object-cover ring-2 ring-blue-500/40"
-              />
+            <div className="relative shrink-0 flex items-center justify-center">
+              {currentUser?.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) ? (
+                <img
+                  src={currentUser.avatar}
+                  alt={currentUser?.name || "Profile"}
+                  className="w-6 h-6 rounded-full object-cover ring-2 ring-blue-500/40"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-purple-600 text-white font-bold text-[11px] flex items-center justify-center ring-2 ring-blue-500/40 shrink-0">
+                  {(currentUser?.name || 'A').charAt(0).toUpperCase()}
+                </div>
+              )}
               <span
-                className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-slate-900 ${
+                className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ${
+                  isDarkMode ? 'ring-slate-900' : 'ring-white'
+                } ${
                   currentUser?.status === 'offline' ? 'bg-yellow-400' : 'bg-emerald-500'
                 }`}
                 title={currentUser?.status === 'offline' ? 'Offline' : 'Active'}
               />
             </div>
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[75px] truncate">
-              {currentUser?.name || 'jainarnav'}
+            <span className="text-[12px] sm:text-xs font-bold text-slate-900 dark:text-slate-100 max-w-[70px] xs:max-w-[90px] sm:max-w-[120px] truncate leading-tight select-none">
+              {currentUser?.name || 'Arnav Jain'}
             </span>
           </button>
 

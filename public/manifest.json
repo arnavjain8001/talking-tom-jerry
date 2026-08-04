@@ -1,24 +1,16 @@
 {
-  "name": "Talking Tom Jerry",
-  "short_name": "TomJerry",
-  "description": "A fun video calling and chat application",
-  "start_url": "/",
-  "scope": "/",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "short_name": "ChatApp",
+  "name": "ChatApp - Direct Messages & Video Calling",
   "icons": [
     {
-      "src": "data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;💬&lt;/text&gt;&lt;/svg&gt;",
+      "src": "/icon.svg",
       "type": "image/svg+xml",
-      "sizes": "512x512"
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
     }
   ],
-  "id": "com.talkingtomjerry.app",
-  "categories": [
-    "entertainment",
-    "personalization",
-    "social"
-  ]
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone"
 }
