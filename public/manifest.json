@@ -1,16 +1,15 @@
 {
+  "id": "/",
   "name": "Tom Jerry",
   "short_name": "Tom Jerry",
   "description": "Hey Welcome to the chat world",
   "start_url": "https://talking-tom-jerrry.netlify.app/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#f97316",
-  "prefer_related_applications": false,
-  "iarc_rating_id": "urn:content-rating:dersa:all",
+  "categories": ["social", "chat"],
   "icons": [
     {
       "src": "/tom-jerry.png",
@@ -23,6 +22,19 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/tom-jerry.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/tom-jerry.png",
+      "sizes": "512x512",
+      "type": "image/png"
     }
   ]
 }
