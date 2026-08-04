@@ -33,7 +33,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to keep soft keyboard open on mobile devices after sending messages (WhatsApp style)
+  const focusInput = () => {
+    inputRef.current?.focus();
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  };
 
   // Voice Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -174,6 +183,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setRecordedAudio(null);
     setRecordingSeconds(0);
     onCancelReply?.();
+    focusInput();
   };
 
   const handleTextChange = (val: string) => {
@@ -201,6 +211,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setSelectedImage(null);
     setShowEmojiPicker(false);
     onCancelReply?.();
+    focusInput();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -213,6 +224,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleSendHeart = () => {
     onSendMessage('❤️', undefined, replyToMessage || undefined);
     onCancelReply?.();
+    focusInput();
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,6 +240,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleAddEmoji = (emoji: string) => {
     setText((prev) => prev + emoji);
+    focusInput();
   };
 
   const formatTime = (secs: number) => {
@@ -451,6 +464,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {/* Text Input Field */}
           <div className="flex-1 relative">
             <input
+              ref={inputRef}
               type="text"
               value={text}
               onChange={(e) => handleTextChange(e.target.value)}
