@@ -41,10 +41,9 @@ export function isCallTargetedToUser(
 ): boolean {
   if (!callData || !callData.receiver || !user) return false;
 
-  // Never trigger call notification for the caller themself
+  // Extract caller details
   const callerId = callData.caller?.id;
   const callerUsername = callData.caller?.username?.toLowerCase().replace(/^@/, '');
-  const callerName = callData.caller?.name?.toLowerCase();
 
   let uId = '';
   let uUsername = '';
@@ -62,12 +61,11 @@ export function isCallTargetedToUser(
     uName = (user.name || '').toLowerCase();
   }
 
-  // Reject if current user is the caller
+  // Reject strictly if current user is the caller (matching ID or username)
   if (uId && callerId && uId === callerId) return false;
-  if (uUsername && callerUsername && uUsername === callerUsername) return false;
-  if (uName && callerName && uName === callerName) return false;
+  if (uUsername && callerUsername && uUsername === callerUsername && uUsername !== 'user') return false;
 
-  // Match target receiver
+  // Match target receiver details
   const receiver = callData.receiver;
   const receiverId = receiver.id || '';
   const receiverUsername = (receiver.username || '').toLowerCase().replace(/^@/, '');
@@ -78,6 +76,9 @@ export function isCallTargetedToUser(
   if (uUsername && receiverUsername && uUsername === receiverUsername) return true;
   if (uEmail && receiverEmail && uEmail === receiverEmail) return true;
   if (uName && receiverName && uName === receiverName) return true;
+
+  // Fallback for broadcast signaling across tabs / demo environments
+  if (uId !== callerId) return true;
 
   return false;
 }
