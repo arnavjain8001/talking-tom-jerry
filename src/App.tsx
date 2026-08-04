@@ -253,6 +253,17 @@ export default function App() {
     saveCallLogsToLocalStorage(callLogs, currentUser?.id);
   }, [callLogs, currentUser?.id]);
 
+  // Sync document.documentElement dark mode class with React state
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+  }, [isDarkMode]);
+
   const handleLocalTypingChange = (isTypingVal: boolean) => {
     if (!activeThreadId || !currentUser?.id) return;
     broadcastTypingStatus({

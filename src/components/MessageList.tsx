@@ -246,7 +246,9 @@ export const MessageList: React.FC<MessageListProps> = ({
             className="w-20 h-20 rounded-full object-cover shadow-md ring-4 ring-blue-500/20"
           />
           <h2 className="font-bold text-lg text-slate-900 dark:text-white">{contact.nickname || contact.name}</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{contact.username}</p>
+          <p className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 bg-white/80 dark:bg-slate-800/90 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-slate-200/80 dark:border-slate-700/80 shadow-2xs inline-block mt-0.5">
+            @{contact.username?.replace(/^@/, '')}
+          </p>
           <div className="px-3 py-1 rounded-full bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-xs text-[11px] font-medium text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80 mt-1 shadow-2xs">
             🔒 End-to-end encrypted chat thread
           </div>
@@ -338,12 +340,12 @@ export const MessageList: React.FC<MessageListProps> = ({
                   </div>
                 ) : (
                   <div
-                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-xs break-words relative transition-all cursor-pointer ${
+                    className={`px-3.5 pt-2.5 pb-2 rounded-2xl text-sm leading-relaxed shadow-xs break-words relative transition-all min-w-[110px] flex flex-col ${
                       isMe
                         ? `${activeTheme.bubbleClass || 'bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 text-white'} rounded-br-xs hover:opacity-95 shadow-md`
                         : isDarkMode
-                        ? 'bg-slate-800/90 text-slate-100 border border-slate-700/80 rounded-bl-xs hover:bg-slate-750 backdrop-blur-xs'
-                        : 'bg-white/90 text-slate-800 border border-slate-200/80 rounded-bl-xs hover:bg-white backdrop-blur-xs shadow-2xs'
+                        ? 'bg-slate-800/95 text-slate-100 border border-slate-700/80 rounded-bl-xs hover:bg-slate-750 backdrop-blur-xs'
+                        : 'bg-white/95 text-slate-800 border border-slate-200/90 rounded-bl-xs hover:bg-white backdrop-blur-xs shadow-2xs'
                     }`}
                   >
                     {/* Quoted Replying Snippet */}
@@ -390,7 +392,11 @@ export const MessageList: React.FC<MessageListProps> = ({
                         isMe={isMe}
                       />
                     ) : (
-                      message.text && <p className="whitespace-pre-wrap">{message.text}</p>
+                      message.text && (
+                        <p className="whitespace-pre-wrap pr-10 leading-relaxed text-[14px]">
+                          {message.text}
+                        </p>
+                      )
                     )}
 
                     {/* Interactive Poll Card */}
@@ -433,6 +439,42 @@ export const MessageList: React.FC<MessageListProps> = ({
                         </div>
                       </div>
                     )}
+
+                    {/* Integrated Bottom-Right Timestamp & Status Ticks */}
+                    <div
+                      className={`flex items-center gap-1.5 text-[10px] self-end mt-1 font-sans select-none ${
+                        isMe
+                          ? 'text-white/80'
+                          : isDarkMode
+                          ? 'text-slate-400'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      <span>{message.timestamp}</span>
+                      {message.isEdited && !message.isDeletedForEveryone && (
+                        <span className="italic font-sans">(edited)</span>
+                      )}
+                      {isMe && !message.isDeletedForEveryone && (
+                        <span
+                          title={
+                            message.status === 'read'
+                              ? 'Read by recipient (Seen)'
+                              : message.status === 'delivered'
+                              ? 'Delivered to recipient'
+                              : 'Sent'
+                          }
+                          className="inline-flex items-center ml-0.5"
+                        >
+                          {message.status === 'read' ? (
+                            <CheckCheck className="w-3.5 h-3.5 text-cyan-300 dark:text-cyan-400 font-extrabold stroke-[2.5]" />
+                          ) : message.status === 'delivered' ? (
+                            <CheckCheck className="w-3.5 h-3.5 text-white/80 dark:text-slate-400 stroke-[2]" />
+                          ) : (
+                            <Check className="w-3 h-3 text-white/80 dark:text-slate-400 stroke-[2]" />
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -454,38 +496,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                     ))}
                   </motion.div>
                 )}
-
-                {/* Timestamp & Read Status & Edited Indicator */}
-                <div
-                  className={`flex items-center gap-1.5 text-[10px] mt-1 px-1 font-mono ${
-                    isDarkMode ? 'text-slate-400' : 'text-slate-400'
-                  }`}
-                >
-                  <span>{message.timestamp}</span>
-                  {message.isEdited && !message.isDeletedForEveryone && (
-                    <span className="italic font-sans text-slate-400">(edited)</span>
-                  )}
-                  {isMe && !message.isDeletedForEveryone && (
-                    <span
-                      title={
-                        message.status === 'read'
-                          ? 'Read by recipient (Seen)'
-                          : message.status === 'delivered'
-                          ? 'Delivered to recipient'
-                          : 'Sent'
-                      }
-                      className="inline-flex items-center ml-0.5"
-                    >
-                      {message.status === 'read' ? (
-                        <CheckCheck className="w-4 h-4 text-cyan-400 font-extrabold stroke-[2.5] drop-shadow-xs" />
-                      ) : message.status === 'delivered' ? (
-                        <CheckCheck className="w-4 h-4 text-slate-300 dark:text-slate-400 stroke-[2]" />
-                      ) : (
-                        <Check className="w-3.5 h-3.5 text-slate-300 dark:text-slate-400 stroke-[2]" />
-                      )}
-                    </span>
-                  )}
-                </div>
               </div>
             </motion.div>
           );

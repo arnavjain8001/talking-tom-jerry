@@ -630,7 +630,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title={currentUser?.status === 'offline' ? 'Offline' : 'Active'}
               />
             </div>
-            <span className="text-[12px] sm:text-xs font-bold text-slate-900 dark:text-slate-100 max-w-[70px] xs:max-w-[90px] sm:max-w-[120px] truncate leading-tight select-none">
+            <span className={`text-[12px] sm:text-xs font-black max-w-[70px] xs:max-w-[90px] sm:max-w-[120px] truncate leading-tight select-none ${
+              isDarkMode ? 'text-slate-100' : 'text-slate-900'
+            }`}>
               {currentUser?.name || 'Arnav Jain'}
             </span>
           </button>
