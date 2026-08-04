@@ -18,6 +18,7 @@ import { PollModal } from './components/PollModal';
 import { StoriesModal } from './components/StoriesModal';
 import { AddStoryModal } from './components/AddStoryModal';
 import { AuthScreen } from './components/AuthScreen';
+import { WelcomeCelebrationModal } from './components/WelcomeCelebrationModal';
 import { Spline3DViewer } from './components/Spline3DViewer';
 import { MessageSquare, MessagesSquare, Sparkles, Phone, Video, Pin, X, Plus } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -38,6 +39,7 @@ import {
   broadcastPollVote,
   broadcastTypingStatus,
   broadcastUserPresence,
+  broadcastMessageDelete,
   subscribeToBroadcastMessages,
 } from './lib/chatStore';
 import {
@@ -239,7 +241,20 @@ export default function App() {
   const [showNewCallModal, setShowNewCallModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [typingThreads, setTypingThreads] = useState<Record<string, boolean>>({});
-  const [activeCall, setActiveCall] = useState<{ type: 'voice' | 'video'; name: string } | null>(null);
+  const [showWelcomeModal, setShowWelcomeModal] = useState<boolean>(false);
+
+  // Trigger one-time celebratory welcome modal upon successful login/signup per session
+  useEffect(() => {
+    if (currentUser?.id || currentUser?.name) {
+      const userKey = currentUser.id || currentUser.email || 'user';
+      const sessionKey = `welcome_celebration_shown_${userKey}`;
+      const alreadyShown = sessionStorage.getItem(sessionKey);
+      if (!alreadyShown) {
+        sessionStorage.setItem(sessionKey, 'true');
+        setShowWelcomeModal(true);
+      }
+    }
+  }, [currentUser?.id, currentUser?.email]);
 
   // Call Logs state with LocalStorage persistence per user
   const [callLogs, setCallLogs] = useState<CallLog[]>(() => loadCallLogsFromLocalStorage(currentUser?.id));
@@ -362,6 +377,37 @@ export default function App() {
       );
     };
 
+    const handleDeleteMessage = (deletePayload: { chatId: string; messageId: string; deleteType: 'forMe' | 'forEveryone' }) => {
+      setThreads((prevThreads) =>
+        prevThreads.map((thread) => {
+          if (thread.id === deletePayload.chatId) {
+            if (deletePayload.deleteType === 'forEveryone') {
+              return {
+                ...thread,
+                messages: thread.messages.map((m) =>
+                  m.id === deletePayload.messageId
+                    ? {
+                        ...m,
+                        text: 'This message was deleted',
+                        imageUrl: undefined,
+                        reactions: [],
+                        isDeletedForEveryone: true,
+                      }
+                    : m
+                ),
+              };
+            } else {
+              return {
+                ...thread,
+                messages: thread.messages.filter((m) => m.id !== deletePayload.messageId),
+              };
+            }
+          }
+          return thread;
+        })
+      );
+    };
+
     const unsubscribe = subscribeToBroadcastMessages(
       currentUser,
       (payload) => {
@@ -417,7 +463,8 @@ export default function App() {
       handleReadAck,
       handlePollVote,
       handleTypingStatus,
-      handlePresenceUpdate
+      handlePresenceUpdate,
+      handleDeleteMessage
     );
 
     return () => unsubscribe();
@@ -990,8 +1037,10 @@ export default function App() {
   };
 
   // Delete for me
-  const handleDeleteForMe = (messageId: string) => {
+  const handleDeleteForMe = async (messageId: string) => {
     if (!activeThreadId) return;
+
+    // 1. Update local UI state immediately
     setThreads((prev) =>
       prev.map((thread) => {
         if (thread.id !== activeThreadId) return thread;
@@ -1001,11 +1050,23 @@ export default function App() {
         };
       })
     );
+
+    // 2. Permanently delete message from Firestore database
+    await deleteMessageInFirestore(activeThreadId, messageId);
+
+    // 3. Broadcast deletion event to connected clients / tabs
+    broadcastMessageDelete({
+      chatId: activeThreadId,
+      messageId,
+      deleteType: 'forMe',
+    });
   };
 
   // Delete for everyone
-  const handleDeleteForEveryone = (messageId: string) => {
+  const handleDeleteForEveryone = async (messageId: string) => {
     if (!activeThreadId) return;
+
+    // 1. Update local UI state to 'This message was deleted'
     setThreads((prev) =>
       prev.map((thread) => {
         if (thread.id !== activeThreadId) return thread;
@@ -1024,6 +1085,16 @@ export default function App() {
         };
       })
     );
+
+    // 2. Permanently delete message document from Firestore database (or update tombstone)
+    await deleteMessageInFirestore(activeThreadId, messageId);
+
+    // 3. Broadcast deletion event to receiver clients in real-time
+    broadcastMessageDelete({
+      chatId: activeThreadId,
+      messageId,
+      deleteType: 'forEveryone',
+    });
   };
 
   // Handle voting on a poll
@@ -1599,6 +1670,13 @@ export default function App() {
           }
         />
       )}
+
+      {/* Celebration / Welcome Modal (3s Auto-Close) */}
+      <WelcomeCelebrationModal
+        isOpen={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
+        userName={currentUser?.name}
+      />
     </div>
   );
 }

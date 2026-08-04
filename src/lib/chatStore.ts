@@ -368,6 +368,20 @@ export function broadcastReadAck(payload: {
   }
 }
 
+export function broadcastMessageDelete(payload: {
+  chatId: string;
+  messageId: string;
+  deleteType: 'forMe' | 'forEveryone';
+}) {
+  if (messageBroadcastChannel) {
+    try {
+      messageBroadcastChannel.postMessage({ type: 'MESSAGE_DELETE_UPDATE', ...payload });
+    } catch (e) {
+      console.warn('Broadcast channel delete error:', e);
+    }
+  }
+}
+
 export function broadcastPollVote(payload: {
   chatId: string;
   messageId: string;
@@ -425,13 +439,21 @@ export function subscribeToBroadcastMessages(
   onReadAck?: (payload: { chatId: string; readerId: string }) => void,
   onPollVote?: (payload: { chatId: string; messageId: string; poll: PollPayload }) => void,
   onTypingStatus?: (payload: { chatId: string; senderId: string; isTyping: boolean }) => void,
-  onPresenceUpdate?: (payload: { userId: string; status: 'online' | 'offline'; lastSeen?: string }) => void
+  onPresenceUpdate?: (payload: { userId: string; status: 'online' | 'offline'; lastSeen?: string }) => void,
+  onDeleteMessage?: (payload: { chatId: string; messageId: string; deleteType: 'forMe' | 'forEveryone' }) => void
 ) {
   if (!messageBroadcastChannel || !currentUser) return () => {};
 
   const handleMessage = (event: MessageEvent) => {
     const data = event.data;
     if (!data) return;
+
+    if (data.type === 'MESSAGE_DELETE_UPDATE') {
+      if (onDeleteMessage) {
+        onDeleteMessage({ chatId: data.chatId, messageId: data.messageId, deleteType: data.deleteType });
+      }
+      return;
+    }
 
     if (data.type === 'TYPING_STATUS') {
       if (data.senderId !== currentUser.id && onTypingStatus) {

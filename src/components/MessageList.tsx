@@ -341,7 +341,9 @@ export const MessageList: React.FC<MessageListProps> = ({
                 ) : (
                   <div
                     className={`px-3.5 pt-2.5 pb-2 rounded-2xl text-sm leading-relaxed shadow-xs break-words relative transition-all min-w-[110px] flex flex-col ${
-                      isMe
+                      message.poll
+                        ? 'bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] text-white border border-[#4a4a75]/60 shadow-xl rounded-2xl'
+                        : isMe
                         ? `${activeTheme.bubbleClass || 'bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 text-white'} rounded-br-xs hover:opacity-95 shadow-md`
                         : isDarkMode
                         ? 'bg-slate-800/95 text-slate-100 border border-slate-700/80 rounded-bl-xs hover:bg-slate-750 backdrop-blur-xs'
@@ -393,7 +395,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                       />
                     ) : (
                       message.text && (
-                        <p className="whitespace-pre-wrap pr-10 leading-relaxed text-[14px]">
+                        <p className={`whitespace-pre-wrap pr-10 leading-relaxed text-[14px] ${message.poll ? 'text-[#00f2ff] font-bold mb-1' : ''}`}>
                           {message.text}
                         </p>
                       )
@@ -401,13 +403,13 @@ export const MessageList: React.FC<MessageListProps> = ({
 
                     {/* Interactive Poll Card */}
                     {message.poll && (
-                      <div className="mt-2.5 p-3 rounded-2xl bg-black/10 dark:bg-slate-900/60 border border-white/20 dark:border-slate-700/60 space-y-2 min-w-[220px]">
-                        <div className="flex items-center justify-between gap-2 border-b border-white/10 dark:border-slate-700/50 pb-1.5">
-                          <span className="font-bold text-xs uppercase tracking-wider text-blue-500">Poll</span>
-                          <span className="text-[10px] opacity-75 font-mono">{message.poll.totalVotes} vote{message.poll.totalVotes === 1 ? '' : 's'}</span>
+                      <div className="mt-2 p-3 rounded-2xl bg-[#0f0c29]/60 border border-[#4a4a75]/60 space-y-2.5 min-w-[230px]">
+                        <div className="flex items-center justify-between gap-2 border-b border-[#3a3a58] pb-1.5">
+                          <span className="font-extrabold text-[11px] uppercase tracking-wider text-[#a0a0c0]">POLL</span>
+                          <span className="text-[11px] font-medium text-[#a0a0c0] font-mono">{message.poll.totalVotes} vote{message.poll.totalVotes === 1 ? '' : 's'}</span>
                         </div>
-                        <p className="font-bold text-sm tracking-tight">{message.poll.question}</p>
-                        <div className="space-y-1.5 pt-1">
+                        <p className="font-bold text-sm tracking-tight text-[#00f2ff]">{message.poll.question}</p>
+                        <div className="space-y-2 pt-0.5">
                           {message.poll.options.map((opt) => {
                             const pct = message.poll!.totalVotes > 0 ? Math.round((opt.votes.length / message.poll!.totalVotes) * 100) : 0;
                             const myId = currentUser?.id || 'me';
@@ -419,19 +421,22 @@ export const MessageList: React.FC<MessageListProps> = ({
                                   e.stopPropagation();
                                   onVotePoll?.(message.id, opt.id);
                                 }}
-                                className={`w-full relative overflow-hidden rounded-xl p-2 text-left text-xs font-semibold border transition-all ${
+                                className={`w-full relative overflow-hidden rounded-xl p-2.5 text-left text-xs font-semibold transition-all duration-200 border bg-[#3a3a58] ${
                                   hasVoted
-                                    ? 'border-blue-500 bg-blue-500/20 text-blue-400 font-bold'
-                                    : 'border-white/20 dark:border-slate-700/80 hover:bg-white/10'
+                                    ? 'border-[#00f2ff] ring-2 ring-[#00f2ff]/30 shadow-md'
+                                    : 'border-[#4a4a75]/60 hover:border-[#ff80ab]/70'
                                 }`}
                               >
                                 <div
-                                  className="absolute top-0 bottom-0 left-0 bg-blue-500/20 transition-all duration-300"
+                                  className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-[#ffb86c] to-[#ff80ab] transition-all duration-500 ease-out"
                                   style={{ width: `${pct}%` }}
                                 />
                                 <div className="relative z-10 flex items-center justify-between">
-                                  <span>{opt.text}</span>
-                                  <span className="text-[10px] font-mono opacity-80 ml-2">{pct}%</span>
+                                  <span className="text-white font-bold drop-shadow-xs flex items-center gap-1">
+                                    {opt.text}
+                                    {hasVoted && <span className="text-[#00f2ff] font-extrabold text-xs">✓</span>}
+                                  </span>
+                                  <span className="text-white font-bold font-mono text-[11px] drop-shadow-xs ml-2">{pct}%</span>
                                 </div>
                               </button>
                             );
@@ -443,7 +448,9 @@ export const MessageList: React.FC<MessageListProps> = ({
                     {/* Integrated Bottom-Right Timestamp & Status Ticks */}
                     <div
                       className={`flex items-center gap-1.5 text-[10px] self-end mt-1 font-sans select-none ${
-                        isMe
+                        message.poll
+                          ? 'text-[#a0a0c0]'
+                          : isMe
                           ? 'text-white/80'
                           : isDarkMode
                           ? 'text-slate-400'
