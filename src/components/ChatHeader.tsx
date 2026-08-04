@@ -65,14 +65,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
 
           <div onClick={onToggleInfo} className="min-w-0 cursor-pointer group">
-            <div className="flex items-center gap-1.5 truncate">
-              <h3 className="font-bold text-sm tracking-tight truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                {contact.nickname || contact.name}
-              </h3>
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
-                @{contact.username?.replace(/^@/, '')}
-              </span>
-            </div>
+            <h3 className="font-bold text-sm tracking-tight truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+              {contact.nickname || contact.name}
+            </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-sans mt-0.5">
               {isTyping ? (
                 <span className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">

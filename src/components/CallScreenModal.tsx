@@ -45,6 +45,7 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
   onEndCall,
 }) => {
   const [callState, setCallState] = useState<'ringing' | 'accepted' | 'connected' | 'declined' | 'ended'>('ringing');
+  const [connectedAtTimestamp, setConnectedAtTimestamp] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(type === 'voice');
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -81,9 +82,12 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
   // Listen for remote call state updates (e.g., 'accepted', 'declined', 'ended')
   useEffect(() => {
     if (!callId) return;
-    const unsub = subscribeToCallState(callId, (status: 'ringing' | 'accepted' | 'declined' | 'ended') => {
+    const unsub = subscribeToCallState(callId, (status: 'ringing' | 'accepted' | 'connected' | 'declined' | 'ended', timestamp?: number) => {
       if (status) {
         setCallState(status);
+        if (timestamp) {
+          setConnectedAtTimestamp(timestamp);
+        }
         if (status === 'declined' || status === 'ended') {
           setTimeout(() => handleEnd(), 800);
         }
@@ -447,18 +451,31 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
     }
   };
 
-  // Call Duration Timer
+  // Real-Time Synchronized Call Duration Timer
   useEffect(() => {
-    if (callState === 'connected') {
+    const isConnected = callState === 'connected' || callState === 'accepted';
+    if (!isConnected) {
       setCallDuration(0);
-      timerRef.current = setInterval(() => {
-        setCallDuration((p) => p + 1);
-      }, 1000);
+      return;
     }
+
+    const startTime = connectedAtTimestamp || Date.now();
+    if (!connectedAtTimestamp) {
+      setConnectedAtTimestamp(startTime);
+    }
+
+    const updateTimer = () => {
+      const elapsedSecs = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+      setCallDuration(elapsedSecs);
+    };
+
+    updateTimer();
+    timerRef.current = setInterval(updateTimer, 1000);
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [callState]);
+  }, [callState, connectedAtTimestamp]);
 
   // Fullscreen
   const toggleFullscreen = () => {
@@ -493,7 +510,9 @@ export const CallScreenModal: React.FC<CallScreenModalProps> = ({
   const formatDuration = (secs: number) => {
     const mins = Math.floor(secs / 60);
     const s = secs % 60;
-    return `${mins}:${s < 10 ? '0' : ''}${s}`;
+    const mm = mins < 10 ? `0${mins}` : `${mins}`;
+    const ss = s < 10 ? `0${s}` : `${s}`;
+    return `${mm}:${ss}`;
   };
 
   if (!isOpen) return null;

@@ -598,7 +598,8 @@ export default function App() {
 
   // Accept Incoming Call
   const handleAcceptIncomingCall = async (callSignal: CallSignalData) => {
-    await updateCallStatus(callSignal.callId, 'accepted');
+    const connectedTimestamp = Date.now();
+    await updateCallStatus(callSignal.callId, 'accepted', connectedTimestamp);
     setActiveCallId(callSignal.callId);
     setCallRole('receiver');
     setCallType(callSignal.type === 'video' ? 'video' : 'audio');

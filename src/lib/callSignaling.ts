@@ -17,8 +17,9 @@ export interface CallSignalData {
   caller: Contact;
   receiver: Contact;
   type: 'video' | 'voice';
-  status: 'ringing' | 'accepted' | 'declined' | 'ended';
+  status: 'ringing' | 'accepted' | 'connected' | 'declined' | 'ended';
   createdAt: number;
+  connectedAt?: number;
   offer?: RTCSessionDescriptionInit;
   answer?: RTCSessionDescriptionInit;
 }
@@ -213,20 +214,27 @@ export function subscribeToIncomingCalls(
 // 3. Update Call Status (Accept, Decline, End)
 export async function updateCallStatus(
   callId: string,
-  status: 'accepted' | 'declined' | 'ended'
+  status: 'accepted' | 'connected' | 'declined' | 'ended',
+  connectedAt?: number
 ) {
+  const payload: any = { status };
+  if (connectedAt) {
+    payload.connectedAt = connectedAt;
+  }
+
   if (broadcastChannel) {
     broadcastChannel.postMessage({
       type: 'CALL_STATUS_CHANGED',
       callId,
       status,
+      connectedAt,
     });
   }
 
   if (db) {
     try {
       const callRef = doc(db, 'calls', callId);
-      await updateDoc(callRef, { status });
+      await updateDoc(callRef, payload);
     } catch (e: any) {
       if (e?.code === 'permission-denied' || e?.message?.includes('permissions')) {
         console.info('[Firestore Call Signaling] Call status update restricted by backend rules.');
@@ -240,11 +248,11 @@ export async function updateCallStatus(
 // 4. Listen to single call state changes
 export function subscribeToCallState(
   callId: string,
-  onStateUpdate: (status: 'ringing' | 'accepted' | 'declined' | 'ended', data?: CallSignalData) => void
+  onStateUpdate: (status: 'ringing' | 'accepted' | 'connected' | 'declined' | 'ended', connectedAt?: number, data?: CallSignalData) => void
 ): () => void {
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'CALL_STATUS_CHANGED' && event.data?.callId === callId) {
-      onStateUpdate(event.data.status);
+      onStateUpdate(event.data.status, event.data.connectedAt);
     }
   };
 
@@ -262,7 +270,7 @@ export function subscribeToCallState(
           if (docSnap.exists()) {
             const data = docSnap.data() as CallSignalData;
             if (data && data.status) {
-              onStateUpdate(data.status, data);
+              onStateUpdate(data.status, data.connectedAt, data);
             }
           }
         },
