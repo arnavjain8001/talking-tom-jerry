@@ -266,7 +266,13 @@ export const MessageList: React.FC<MessageListProps> = ({
               initial={{ opacity: 0, y: 12, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className={`flex items-end gap-2.5 ${isMe ? 'justify-end' : 'justify-start'}`}
+              onDoubleClick={() => {
+                if (!message.isDeletedForEveryone) {
+                  onReplyToMessage?.(message);
+                }
+              }}
+              className={`flex items-end gap-2.5 cursor-pointer sm:cursor-default ${isMe ? 'justify-end' : 'justify-start'}`}
+              title="Double click side area to reply"
             >
               {/* Contact Avatar (for received messages) */}
               {!isMe && (
@@ -283,32 +289,73 @@ export const MessageList: React.FC<MessageListProps> = ({
                 </div>
               )}
 
-              {/* Bubble Container */}
-              <div
+              {/* Bubble Container with Mobile Swipe-to-Reply & Desktop Side-Hover/Double-Click Reply Action */}
+              <motion.div
                 id={`msg-item-${message.id}`}
                 onContextMenu={(e) => handleContextMenu(e, message)}
-                className={`group relative max-w-[82%] sm:max-w-[70%] flex flex-col ${
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (!message.isDeletedForEveryone) {
+                    onReplyToMessage?.(message);
+                  }
+                }}
+                drag={!message.isDeletedForEveryone ? "x" : false}
+                dragConstraints={{ left: 0, right: 70 }}
+                dragElastic={{ left: 0, right: 0.35 }}
+                dragSnapToOrigin={true}
+                onDragEnd={(_, info) => {
+                  if (info.offset.x > 45 && !message.isDeletedForEveryone) {
+                    onReplyToMessage?.(message);
+                    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+                      try { navigator.vibrate(30); } catch (e) {}
+                    }
+                  }
+                }}
+                className={`group relative max-w-[82%] sm:max-w-[70%] flex flex-col touch-pan-y ${
                   isMe ? 'items-end' : 'items-start'
                 }`}
               >
-                {/* Context menu & Quick Reply hover buttons trigger */}
+                {/* Curved Reply Indicator behind sliding bubble on Mobile Swipe */}
+                {!message.isDeletedForEveryone && (
+                  <div className="absolute -left-9 top-1/2 -translate-y-1/2 opacity-0 group-active:opacity-100 transition-opacity pointer-events-none">
+                    <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-500 dark:text-blue-400 flex items-center justify-center border border-blue-500/30 shadow-xs">
+                      <Reply className="w-4 h-4" />
+                    </div>
+                  </div>
+                )}
+
+                {/* WhatsApp Web Style Side-Hover Reply & Context Menu Buttons */}
                 {!message.isDeletedForEveryone && (
                   <div
-                    className={`absolute top-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10 ${
+                    className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1 z-20 ${
                       isMe ? '-left-16' : '-right-16'
                     }`}
                   >
                     <button
-                      onClick={() => onReplyToMessage?.(message)}
-                      className="p-1 rounded-full bg-slate-800/80 text-white hover:bg-blue-600 shadow-md transition-colors"
-                      title="Reply"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReplyToMessage?.(message);
+                      }}
+                      className={`p-1.5 rounded-full shadow-lg border transition-all duration-150 transform hover:scale-110 active:scale-95 ${
+                        isDarkMode
+                          ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-blue-600 hover:text-white hover:border-blue-500'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-blue-600 hover:text-white hover:border-blue-600'
+                      }`}
+                      title="Reply (or swipe right on mobile)"
                     >
                       <Reply className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={(e) => handleContextMenu(e, message)}
-                      className="p-1 rounded-full bg-slate-800/80 text-white hover:bg-slate-900 shadow-md transition-colors"
-                      title="Message options (Right-click)"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleContextMenu(e, message);
+                      }}
+                      className={`p-1.5 rounded-full shadow-lg border transition-all duration-150 transform hover:scale-110 active:scale-95 ${
+                        isDarkMode
+                          ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                      title="More options"
                     >
                       <MoreVertical className="w-3.5 h-3.5" />
                     </button>
@@ -503,7 +550,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                     ))}
                   </motion.div>
                 )}
-              </div>
+              </motion.div>
             </motion.div>
           );
         })}

@@ -18,7 +18,6 @@ import { PollModal } from './components/PollModal';
 import { StoriesModal } from './components/StoriesModal';
 import { AddStoryModal } from './components/AddStoryModal';
 import { AuthScreen } from './components/AuthScreen';
-import { Spline3DViewer } from './components/Spline3DViewer';
 import { WelcomeCelebrationModal } from './components/WelcomeCelebrationModal';
 import { MessageSquare, MessagesSquare, Sparkles, Phone, Video, Pin, X, Plus } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -81,6 +80,66 @@ const saveCallLogsToLocalStorage = (logs: CallLog[], userId?: string) => {
   } catch (e) {
     console.warn('Failed to save call logs:', e);
   }
+};
+
+// Typewriter component for Talking Tom & Jerry desktop empty state title
+const TypewriterTitle: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) => {
+  const fullText = "Talking Tom & Jerry";
+  const [displayText, setDisplayText] = useState('');
+  const [showCursor, setShowCursor] = useState(true);
+
+  useEffect(() => {
+    let index = 0;
+    let isDeleting = false;
+    let timer: NodeJS.Timeout;
+
+    const animate = () => {
+      if (!isDeleting) {
+        if (index <= fullText.length) {
+          setDisplayText(fullText.slice(0, index));
+          index++;
+          timer = setTimeout(animate, 90);
+        } else {
+          timer = setTimeout(() => {
+            isDeleting = true;
+            animate();
+          }, 3000);
+        }
+      } else {
+        if (index >= 0) {
+          setDisplayText(fullText.slice(0, index));
+          index--;
+          timer = setTimeout(animate, 40);
+        } else {
+          isDeleting = false;
+          index = 0;
+          timer = setTimeout(animate, 500);
+        }
+      }
+    };
+
+    animate();
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const cursorInterval = setInterval(() => {
+      setShowCursor((prev) => !prev);
+    }, 500);
+    return () => clearInterval(cursorInterval);
+  }, []);
+
+  return (
+    <h3 className={`text-xl font-bold tracking-tight inline-flex items-center justify-center min-h-[28px] ${
+      isDarkMode ? 'text-slate-100' : 'text-slate-900'
+    }`}>
+      <span>{displayText}</span>
+      <span className={`ml-0.5 w-0.5 h-5 bg-blue-600 dark:bg-blue-400 inline-block transition-opacity duration-100 ${
+        showCursor ? 'opacity-100' : 'opacity-0'
+      }`} />
+    </h3>
+  );
 };
 
 // Typewriter component for Desktop Empty State Welcome Text
@@ -1336,38 +1395,48 @@ export default function App() {
       ? getDirectChatId(currentUser.id, contact.id)
       : `thread-${contact.id}`;
 
-    // Ensure thread exists in local threads state immediately so active thread opens without delay
+    if (currentUser?.id) {
+      removeDeletedThreadIdFromLocalStorage(chatId, currentUser.id);
+    }
+
     setThreads((prevThreads) => {
       const existing = prevThreads.find(
         (t) => t.id === chatId || (contact.id && t.contact.id === contact.id)
       );
+
+      let updatedList: ChatThread[];
       if (existing) {
-        return prevThreads.map((t) =>
+        updatedList = prevThreads.map((t) =>
           t.id === existing.id || t.contact.id === contact.id
             ? { ...t, id: chatId, contact: { ...t.contact, ...contact } }
             : t
         );
+      } else {
+        const newThread: ChatThread = {
+          id: chatId,
+          contact: contact,
+          messages: [],
+          unreadCount: 0,
+        };
+        updatedList = [newThread, ...prevThreads];
       }
-      const newThread: ChatThread = {
-        id: chatId,
-        contact: contact,
-        messages: [],
-        unreadCount: 0,
-      };
-      return [newThread, ...prevThreads];
+
+      if (currentUser?.id) {
+        saveThreadsToLocalStorage(updatedList, currentUser.id);
+      }
+      return updatedList;
     });
 
     setActiveThreadId(chatId);
 
     if (currentUser?.id) {
-      removeDeletedThreadIdFromLocalStorage(chatId, currentUser.id);
       const userPayload = {
         id: currentUser.id,
         name: currentUser.name,
         username: currentUser.username,
         avatar: currentUser.avatar,
       };
-      createOrGetChatInFirestore(userPayload, contact);
+      await createOrGetChatInFirestore(userPayload, contact);
     }
 
     setShowNewChatModal(false);
@@ -1580,9 +1649,29 @@ export default function App() {
               )}
             </div>
           ) : (
-            /* Interactive Spline 3D Scene Integration */
-            <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-6 text-center bg-slate-50/50 dark:bg-slate-900/40 select-none relative h-full w-full overflow-hidden">
-              <Spline3DViewer sceneUrl="https://prod.spline.design/PI9J6Lmm7K93BDVV/scene.splinecode" />
+            /* Clean Desktop Empty Chat View (When no conversation is selected) */
+            <div className={`flex-1 flex flex-col items-center justify-center p-8 text-center select-none relative h-full w-full ${
+              isDarkMode ? 'bg-slate-950 text-slate-400' : 'bg-slate-50 text-slate-500'
+            }`}>
+              <div className="max-w-md mx-auto flex flex-col items-center justify-center space-y-4">
+                <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-3xl p-3 flex items-center justify-center overflow-hidden transition-all duration-300 ${
+                  isDarkMode
+                    ? 'bg-slate-900/90 border border-slate-800 shadow-2xl ring-1 ring-slate-800'
+                    : 'bg-white border border-slate-200/80 shadow-xl ring-1 ring-slate-100'
+                }`}>
+                  <img
+                    src="/tom-jerry.png"
+                    alt="Tom & Jerry"
+                    className="w-full h-full object-contain pointer-events-none drop-shadow-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <TypewriterTitle isDarkMode={isDarkMode} />
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    Send and receive messages with end-to-end encryption. Select a chat from the sidebar to start messaging.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </main>

@@ -132,6 +132,10 @@ export async function createOrGetChatInFirestore(
   contact: Contact
 ): Promise<string> {
   const chatId = getDirectChatId(currentUser.id, contact.id);
+
+  // Always remove chatId from currentUser's local deletedThreads set
+  removeDeletedThreadIdFromLocalStorage(chatId, currentUser.id);
+
   if (!db) return chatId;
 
   try {
@@ -168,10 +172,15 @@ export async function createOrGetChatInFirestore(
         lastMessage: '',
         lastMessageTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         unreadCounts: { [currentUser.id]: 0, [contact.id]: 0 },
+        deletedFor: [],
       };
       await setDoc(chatRef, cleanForFirestore(newChatData));
     } else {
-      // Merge latest user profiles
+      const existingData = chatSnap.data();
+      const currentDeletedFor: string[] = existingData.deletedFor || [];
+      const updatedDeletedFor = currentDeletedFor.filter((id: string) => id !== currentUser.id);
+
+      // Merge latest user profiles and clear currentUser from deletedFor array in Firestore
       await setDoc(
         chatRef,
         cleanForFirestore({
@@ -179,6 +188,7 @@ export async function createOrGetChatInFirestore(
             [currentUser.id]: currentUserProfile,
             [contact.id]: contactProfile,
           },
+          deletedFor: updatedDeletedFor,
           updatedAt: Date.now(),
         }),
         { merge: true }
@@ -203,6 +213,9 @@ export async function sendMessageToFirestore(
   contactId: string,
   currentProfiles?: Record<string, any>
 ) {
+  removeDeletedThreadIdFromLocalStorage(chatId, currentUserId);
+  removeDeletedThreadIdFromLocalStorage(chatId, contactId);
+
   if (!db) return;
 
   try {
@@ -218,11 +231,12 @@ export async function sendMessageToFirestore(
     // Save message doc
     await setDoc(msgRef, cleanForFirestore(msgData));
 
-    // Update parent chat preview
+    // Update parent chat preview & clear deletedFor so chat reappears for both participants
     const chatUpdate: Record<string, any> = {
       updatedAt: Date.now(),
       lastMessage: message.text || (message.imageUrl ? '📷 Photo' : message.audioUrl ? '🎵 Voice Note' : 'Message'),
       lastMessageTime: message.timestamp,
+      deletedFor: [],
     };
 
     if (currentProfiles) {
