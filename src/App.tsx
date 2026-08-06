@@ -18,8 +18,8 @@ import { PollModal } from './components/PollModal';
 import { StoriesModal } from './components/StoriesModal';
 import { AddStoryModal } from './components/AddStoryModal';
 import { AuthScreen } from './components/AuthScreen';
-import { WelcomeCelebrationModal } from './components/WelcomeCelebrationModal';
 import { Spline3DViewer } from './components/Spline3DViewer';
+import { WelcomeCelebrationModal } from './components/WelcomeCelebrationModal';
 import { MessageSquare, MessagesSquare, Sparkles, Phone, Video, Pin, X, Plus } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -33,6 +33,8 @@ import {
   sendMessageToFirestore,
   updateMessageInFirestore,
   deleteMessageInFirestore,
+  deleteChatForUserInFirestore,
+  removeDeletedThreadIdFromLocalStorage,
   getDirectChatId,
   broadcastMessage,
   broadcastReadAck,
@@ -40,6 +42,7 @@ import {
   broadcastTypingStatus,
   broadcastUserPresence,
   broadcastMessageDelete,
+  broadcastMessageReaction,
   subscribeToBroadcastMessages,
 } from './lib/chatStore';
 import {
@@ -240,21 +243,9 @@ export default function App() {
   const [showNewChatModal, setShowNewChatModal] = useState<boolean>(false);
   const [showNewCallModal, setShowNewCallModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [typingThreads, setTypingThreads] = useState<Record<string, boolean>>({});
   const [showWelcomeModal, setShowWelcomeModal] = useState<boolean>(false);
-
-  // Trigger one-time celebratory welcome modal upon successful login/signup per session
-  useEffect(() => {
-    if (currentUser?.id || currentUser?.name) {
-      const userKey = currentUser.id || currentUser.email || 'user';
-      const sessionKey = `welcome_celebration_shown_${userKey}`;
-      const alreadyShown = sessionStorage.getItem(sessionKey);
-      if (!alreadyShown) {
-        sessionStorage.setItem(sessionKey, 'true');
-        setShowWelcomeModal(true);
-      }
-    }
-  }, [currentUser?.id, currentUser?.email]);
+  const [typingThreads, setTypingThreads] = useState<Record<string, boolean>>({});
+  const [activeCall, setActiveCall] = useState<{ type: 'voice' | 'video'; name: string } | null>(null);
 
   // Call Logs state with LocalStorage persistence per user
   const [callLogs, setCallLogs] = useState<CallLog[]>(() => loadCallLogsFromLocalStorage(currentUser?.id));
@@ -315,6 +306,42 @@ export default function App() {
 
     return () => unsubscribe();
   }, [currentUser?.id]);
+
+  // Mark active chat room messages as read and reset unread count when viewing active chat
+  useEffect(() => {
+    if (!activeThreadId || !currentUser?.id) return;
+
+    setThreads((prevThreads) => {
+      let modified = false;
+      const nextThreads = prevThreads.map((thread) => {
+        if (thread.id === activeThreadId) {
+          const hasUnread = thread.unreadCount > 0 || thread.messages.some((m) => !m.isMe && m.status !== 'read');
+          if (hasUnread) {
+            modified = true;
+            if (thread.contact?.id) {
+              broadcastReadAck({
+                chatId: activeThreadId,
+                readerId: currentUser.id!,
+                senderId: thread.contact.id,
+              });
+            }
+            return {
+              ...thread,
+              unreadCount: 0,
+              messages: thread.messages.map((m) => (!m.isMe ? { ...m, status: 'read' as const } : m)),
+            };
+          }
+        }
+        return thread;
+      });
+
+      if (modified) {
+        saveThreadsToLocalStorage(nextThreads, currentUser.id);
+        return nextThreads;
+      }
+      return prevThreads;
+    });
+  }, [activeThreadId, currentUser?.id]);
 
   // Subscribe to real-time Broadcast messages & Read Receipts (instant cross-tab / local delivery)
   useEffect(() => {
@@ -387,12 +414,12 @@ export default function App() {
                 messages: thread.messages.map((m) =>
                   m.id === deletePayload.messageId
                     ? {
-                        ...m,
-                        text: 'This message was deleted',
-                        imageUrl: undefined,
-                        reactions: [],
-                        isDeletedForEveryone: true,
-                      }
+                      ...m,
+                      text: 'This message was deleted',
+                      imageUrl: undefined,
+                      reactions: [],
+                      isDeletedForEveryone: true,
+                    }
                     : m
                 ),
               };
@@ -402,6 +429,22 @@ export default function App() {
                 messages: thread.messages.filter((m) => m.id !== deletePayload.messageId),
               };
             }
+          }
+          return thread;
+        })
+      );
+    };
+
+    const handleReactionUpdate = (reactionPayload: { chatId: string; messageId: string; reactions: string[] }) => {
+      setThreads((prevThreads) =>
+        prevThreads.map((thread) => {
+          if (thread.id === reactionPayload.chatId) {
+            return {
+              ...thread,
+              messages: thread.messages.map((m) =>
+                m.id === reactionPayload.messageId ? { ...m, reactions: reactionPayload.reactions } : m
+              ),
+            };
           }
           return thread;
         })
@@ -464,7 +507,8 @@ export default function App() {
       handlePollVote,
       handleTypingStatus,
       handlePresenceUpdate,
-      handleDeleteMessage
+      handleDeleteMessage,
+      handleReactionUpdate
     );
 
     return () => unsubscribe();
@@ -568,7 +612,7 @@ export default function App() {
 
     // Request Notification permission for desktop alerts
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
+      Notification.requestPermission().catch(() => { });
     }
 
     const unsubscribe = subscribeToIncomingCalls(currentUser, (signal) => {
@@ -746,10 +790,22 @@ export default function App() {
     );
   };
 
-  const handleDeleteThread = (threadId: string) => {
-    setThreads((prev) => prev.filter((t) => t.id !== threadId));
+  const handleDeleteThread = async (threadId: string) => {
+    let remainingThreads: ChatThread[] = [];
+    setThreads((prev) => {
+      remainingThreads = prev.filter((t) => t.id !== threadId);
+      if (currentUser?.id) {
+        saveThreadsToLocalStorage(remainingThreads, currentUser.id);
+      }
+      return remainingThreads;
+    });
+
     if (activeThreadId === threadId) {
       setActiveThreadId(null);
+    }
+
+    if (currentUser?.id) {
+      await deleteChatForUserInFirestore(threadId, currentUser.id);
     }
   };
 
@@ -862,7 +918,7 @@ export default function App() {
       );
     }
 
-    // Automatically transition message status from 'sent' -> 'delivered' after 600ms
+    // Automatically transition message status from 'sent' -> 'delivered' -> 'read' (Blue Ticks) when rendered/viewed on screen
     setTimeout(() => {
       setThreads((prevThreads) =>
         prevThreads.map((thread) => {
@@ -877,7 +933,23 @@ export default function App() {
           return thread;
         })
       );
-    }, 600);
+    }, 400);
+
+    setTimeout(() => {
+      setThreads((prevThreads) =>
+        prevThreads.map((thread) => {
+          if (thread.id === activeThreadId) {
+            return {
+              ...thread,
+              messages: thread.messages.map((m) =>
+                m.id === newMessage.id ? { ...m, status: 'read' as const } : m
+              ),
+            };
+          }
+          return thread;
+        })
+      );
+    }, 800);
 
     // Auto-Reply Simulation with Typing Indicator and Blue Tick Read Receipts
     if (autoReplyEnabled && activeThread) {
@@ -910,8 +982,8 @@ export default function App() {
           const replyText = text.toLowerCase().includes('hello') || text.toLowerCase().includes('hi')
             ? `Hey ${currentUser?.name || 'there'}! 😊 Glad to connect with you!`
             : text.toLowerCase().includes('how are you')
-            ? `I'm doing great, thank you! How are you doing today?`
-            : `Thanks for your message! "${text}" Sounds good! 👍`;
+              ? `I'm doing great, thank you! How are you doing today?`
+              : `Thanks for your message! "${text}" Sounds good! 👍`;
 
           const replyMessage: Message = {
             id: `reply-${Date.now()}`,
@@ -976,10 +1048,12 @@ export default function App() {
   };
 
   // React to message
-  const handleReactToMessage = (messageId: string, emoji: string) => {
+  const handleReactToMessage = async (messageId: string, emoji: string) => {
     if (!activeThreadId) return;
-    setThreads((prev) =>
-      prev.map((thread) => {
+    let targetNewReactions: string[] = [];
+
+    setThreads((prev) => {
+      const nextThreads = prev.map((thread) => {
         if (thread.id !== activeThreadId) return thread;
         return {
           ...thread,
@@ -990,11 +1064,34 @@ export default function App() {
             const newReactions = hasEmoji
               ? currentReactions.filter((r) => r !== emoji)
               : [...currentReactions, emoji];
+            targetNewReactions = newReactions;
             return { ...m, reactions: newReactions };
           }),
         };
-      })
-    );
+      });
+
+      if (currentUser?.id) {
+        saveThreadsToLocalStorage(nextThreads, currentUser.id);
+      }
+      return nextThreads;
+    });
+
+    // Save reaction to Firestore database
+    if (activeThreadId) {
+      await updateMessageInFirestore(activeThreadId, messageId, {
+        reactions: targetNewReactions,
+      });
+    }
+
+    // Broadcast reaction update real-time
+    if (currentUser?.id && activeThreadId) {
+      broadcastMessageReaction({
+        chatId: activeThreadId,
+        messageId,
+        reactions: targetNewReactions,
+        userId: currentUser.id,
+      });
+    }
   };
 
   // Set contact nickname (Instagram style)
@@ -1263,6 +1360,7 @@ export default function App() {
     setActiveThreadId(chatId);
 
     if (currentUser?.id) {
+      removeDeletedThreadIdFromLocalStorage(chatId, currentUser.id);
       const userPayload = {
         id: currentUser.id,
         name: currentUser.name,
@@ -1301,6 +1399,7 @@ export default function App() {
         onLogin={(user) => {
           setCurrentUser(user);
           setIsAuthLoading(false);
+          setShowWelcomeModal(true);
         }}
         isDarkMode={isDarkMode}
       />
@@ -1308,25 +1407,26 @@ export default function App() {
   }
 
   return (
-    <div className={`h-screen w-screen flex flex-col overflow-hidden font-sans select-none ${
-      isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
-    }`}>
-      {/* Top Main Navigation Header */}
-      <Header
-        onOpenMobileSidebar={() => {
-          setActiveThreadId(null);
-          setIsMobileSidebarOpen(false);
-        }}
-        onOpenSettings={() => setShowSettingsModal(true)}
-        onOpenNewChat={() => setShowNewChatModal(true)}
-        totalUnread={totalUnread}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-      />
+    <div className={`h-screen h-[100dvh] w-screen flex flex-col overflow-hidden font-sans select-none ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
+      }`}>
+      {/* Top Main Navigation Header - Only rendered on Main List / Home Screen View */}
+      {!activeThreadId && (
+        <Header
+          onOpenMobileSidebar={() => {
+            setActiveThreadId(null);
+            setIsMobileSidebarOpen(false);
+          }}
+          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenNewChat={() => setShowNewChatModal(true)}
+          totalUnread={totalUnread}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+        />
+      )}
 
       {/* Main Two-Column Layout */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -1382,7 +1482,7 @@ export default function App() {
         `}>
           {activeThread ? (
             <div className="flex-1 flex h-full overflow-hidden">
-              <div className="flex-1 flex flex-col h-full min-w-0">
+              <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
                 {/* Chat Header */}
                 <ChatHeader
                   contact={activeThread.contact}
@@ -1399,7 +1499,7 @@ export default function App() {
 
                 {/* Pinned Messages Banner */}
                 {activeThread.pinnedMessageIds && activeThread.pinnedMessageIds.length > 0 && (
-                  <div className="bg-amber-500/10 dark:bg-amber-500/20 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  <div className="sticky top-16 z-20 bg-amber-500/10 dark:bg-amber-500/20 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-300 backdrop-blur-md">
                     <div className="flex items-center gap-2 truncate">
                       <Pin className="w-4 h-4 text-amber-500 shrink-0" />
                       <span className="font-bold">Pinned:</span>
@@ -1445,13 +1545,13 @@ export default function App() {
                   replyToMessage={
                     replyingMessage
                       ? {
-                          id: replyingMessage.id,
-                          senderName: replyingMessage.isMe
-                            ? 'You'
-                            : activeThread.contact.nickname || activeThread.contact.name || 'User',
-                          text: replyingMessage.text,
-                          isMe: replyingMessage.isMe,
-                        }
+                        id: replyingMessage.id,
+                        senderName: replyingMessage.isMe
+                          ? 'You'
+                          : activeThread.contact.nickname || activeThread.contact.name || 'User',
+                        text: replyingMessage.text,
+                        isMe: replyingMessage.isMe,
+                      }
                       : null
                   }
                   onCancelReply={() => setReplyingMessage(null)}
@@ -1671,7 +1771,7 @@ export default function App() {
         />
       )}
 
-      {/* Celebration / Welcome Modal (3s Auto-Close) */}
+      {/* Welcome Celebration Pop-Up Modal */}
       <WelcomeCelebrationModal
         isOpen={showWelcomeModal}
         onClose={() => setShowWelcomeModal(false)}

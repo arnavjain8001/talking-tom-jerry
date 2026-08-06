@@ -8,6 +8,44 @@ interface WelcomeCelebrationModalProps {
   userName?: string;
 }
 
+const playWelcomeChime = () => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const audioCtx = new AudioCtx();
+
+    // Warm, pleasant celebratory major chime: C5, E5, G5, C6
+    const notes = [
+      { freq: 523.25, time: 0, duration: 0.4 },
+      { freq: 659.25, time: 0.08, duration: 0.4 },
+      { freq: 783.99, time: 0.16, duration: 0.45 },
+      { freq: 1046.50, time: 0.24, duration: 0.6 },
+    ];
+
+    const startTime = audioCtx.currentTime + 0.05;
+
+    notes.forEach((note) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(note.freq, startTime + note.time);
+
+      gain.gain.setValueAtTime(0.001, startTime + note.time);
+      gain.gain.linearRampToValueAtTime(0.2, startTime + note.time + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + note.time + note.duration);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(startTime + note.time);
+      osc.stop(startTime + note.time + note.duration);
+    });
+  } catch (err) {
+    console.warn('Welcome sound playback note:', err);
+  }
+};
+
 export const WelcomeCelebrationModal: React.FC<WelcomeCelebrationModalProps> = ({
   isOpen,
   onClose,
@@ -15,6 +53,7 @@ export const WelcomeCelebrationModal: React.FC<WelcomeCelebrationModalProps> = (
 }) => {
   useEffect(() => {
     if (isOpen) {
+      playWelcomeChime();
       const timer = setTimeout(() => {
         onClose();
       }, 3000);

@@ -341,39 +341,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                       {lastMsg && (
                         <span className={`text-xs shrink-0 font-normal ${
-                          thread.unreadCount > 0 ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-slate-400'
+                          thread.unreadCount > 0 ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-400'
                         }`}>
                           {lastMsg.timestamp}
                         </span>
                       )}
                     </div>
 
-                    {/* Snippet & Read/Unread Icon */}
+                    {/* Snippet & Read/Unread Icon / Unread Counter Badge */}
                     <div className="flex items-center justify-between gap-2">
                       <p className={`text-xs truncate ${
                         thread.unreadCount > 0
-                          ? 'font-bold text-slate-900 dark:text-slate-100'
+                          ? 'font-bold text-emerald-600 dark:text-emerald-400'
                           : 'text-slate-500 dark:text-slate-400'
                       }`}>
-                        {lastMsg ? (
-                          <>
-                            {lastMsg.isMe && <span className="text-slate-400 font-normal">You: </span>}
-                            {lastMsg.imageUrl ? '📷 Photo' : lastMsg.text}
-                          </>
+                        {thread.unreadCount > 0 ? (
+                          <span className="flex items-center gap-1.5 font-extrabold text-emerald-600 dark:text-emerald-400">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                            <span>{thread.unreadCount} new message{thread.unreadCount > 1 ? 's' : ''}</span>
+                          </span>
+                        ) : lastMsg ? (
+                          <span className="flex items-center gap-1 min-w-0">
+                            {lastMsg.isMe && (
+                              <span className="inline-flex items-center shrink-0">
+                                {lastMsg.status === 'read' ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 stroke-[2.5]" title="Read (Seen)" />
+                                ) : lastMsg.status === 'delivered' ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 stroke-[2]" title="Delivered" />
+                                ) : (
+                                  <Check className="w-3 h-3 text-slate-400 dark:text-slate-500 stroke-[2]" title="Sent" />
+                                )}
+                              </span>
+                            )}
+                            <span className="truncate">
+                              {lastMsg.imageUrl ? '📷 Photo' : lastMsg.text}
+                            </span>
+                          </span>
                         ) : (
                           <span className="italic text-slate-400">No messages yet</span>
                         )}
                       </p>
 
                       {thread.unreadCount > 0 ? (
-                        <span className="min-w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-extrabold flex items-center justify-center shrink-0 px-1.5 shadow-xs">
+                        <span
+                          className="min-w-5 h-5 rounded-full bg-emerald-500 dark:bg-emerald-600 text-white text-[11px] font-black flex items-center justify-center shrink-0 px-1.5 shadow-xs ring-2 ring-emerald-500/20 animate-scaleIn"
+                          title={`${thread.unreadCount} unread message${thread.unreadCount > 1 ? 's' : ''}`}
+                        >
                           {thread.unreadCount}
                         </span>
                       ) : lastMsg?.isMe ? (
-                        <CheckCheck className="w-4 h-4 text-slate-400 shrink-0" />
-                      ) : (
-                        <CheckCircle2 className="w-4 h-4 text-slate-400/80 shrink-0" />
-                      )}
+                        lastMsg.status === 'read' ? (
+                          <CheckCheck className="w-4.5 h-4.5 text-blue-500 dark:text-blue-400 shrink-0 font-extrabold stroke-[2.5]" title="Read (Seen)" />
+                        ) : lastMsg.status === 'delivered' ? (
+                          <CheckCheck className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0 stroke-[2]" title="Delivered" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0 stroke-[2]" title="Sent" />
+                        )
+                      ) : null}
                     </div>
                   </div>
                 </button>

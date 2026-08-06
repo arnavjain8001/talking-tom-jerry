@@ -26,6 +26,74 @@ function cleanForFirestore<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
+const DELETED_THREADS_KEY_PREFIX = 'chatapp_deleted_threads';
+
+export function getDeletedThreadIdsFromLocalStorage(userId?: string): Set<string> {
+  try {
+    const key = userId ? `${DELETED_THREADS_KEY_PREFIX}_${userId}` : DELETED_THREADS_KEY_PREFIX;
+    const data = localStorage.getItem(key);
+    if (data) {
+      return new Set(JSON.parse(data));
+    }
+  } catch (err) {
+    console.warn('Error reading deleted threads from localStorage:', err);
+  }
+  return new Set();
+}
+
+export function saveDeletedThreadIdToLocalStorage(threadId: string, userId?: string) {
+  try {
+    const key = userId ? `${DELETED_THREADS_KEY_PREFIX}_${userId}` : DELETED_THREADS_KEY_PREFIX;
+    const existing = getDeletedThreadIdsFromLocalStorage(userId);
+    existing.add(threadId);
+    localStorage.setItem(key, JSON.stringify(Array.from(existing)));
+  } catch (err) {
+    console.warn('Error saving deleted thread to localStorage:', err);
+  }
+}
+
+export function removeDeletedThreadIdFromLocalStorage(threadId: string, userId?: string) {
+  try {
+    const key = userId ? `${DELETED_THREADS_KEY_PREFIX}_${userId}` : DELETED_THREADS_KEY_PREFIX;
+    const existing = getDeletedThreadIdsFromLocalStorage(userId);
+    existing.delete(threadId);
+    localStorage.setItem(key, JSON.stringify(Array.from(existing)));
+  } catch (err) {
+    console.warn('Error removing deleted thread from localStorage:', err);
+  }
+}
+
+export async function deleteChatForUserInFirestore(chatId: string, userId: string) {
+  saveDeletedThreadIdToLocalStorage(chatId, userId);
+
+  if (!db || !userId || !chatId) return;
+
+  try {
+    const chatRef = doc(db, 'chats', chatId);
+    const chatSnap = await getDoc(chatRef);
+    if (chatSnap.exists()) {
+      const data = chatSnap.data();
+      const currentDeletedFor: string[] = data.deletedFor || [];
+      if (!currentDeletedFor.includes(userId)) {
+        await setDoc(
+          chatRef,
+          {
+            deletedFor: [...currentDeletedFor, userId],
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        );
+      }
+    }
+  } catch (err: any) {
+    if (err?.code === 'permission-denied' || err?.message?.includes('permissions')) {
+      console.info('[Firestore ChatStore] deleteChatForUserInFirestore operating in local persistence mode.');
+    } else {
+      console.warn('Error in deleteChatForUserInFirestore:', err);
+    }
+  }
+}
+
 // Save threads to LocalStorage fallback
 export function saveThreadsToLocalStorage(threads: ChatThread[], userId?: string) {
   try {
@@ -42,7 +110,9 @@ export function loadThreadsFromLocalStorage(userId?: string): ChatThread[] | nul
     const key = userId ? `${LOCAL_STORAGE_KEY}_${userId}` : LOCAL_STORAGE_KEY;
     const data = localStorage.getItem(key);
     if (data) {
-      return JSON.parse(data);
+      const parsed: ChatThread[] = JSON.parse(data);
+      const deletedSet = getDeletedThreadIdsFromLocalStorage(userId);
+      return parsed.filter((t) => !deletedSet.has(t.id));
     }
   } catch (err) {
     console.warn('LocalStorage read error:', err);
@@ -200,7 +270,7 @@ export function subscribeToUserThreads(
   userId: string,
   onUpdate: (threads: ChatThread[]) => void
 ) {
-  if (!db || !userId) return () => {};
+  if (!db || !userId) return () => { };
 
   try {
     const chatsCol = collection(db, 'chats');
@@ -210,7 +280,16 @@ export function subscribeToUserThreads(
     const chatDataMap: Record<string, { chatMeta: any; messages: Message[] }> = {};
 
     const syncThreadsToCallback = () => {
-      const threadsList: ChatThread[] = Object.values(chatDataMap).map(({ chatMeta, messages }) => {
+      const deletedSet = getDeletedThreadIdsFromLocalStorage(userId);
+
+      const threadsList: ChatThread[] = Object.values(chatDataMap)
+        .filter(({ chatMeta }) => {
+          const deletedFor: string[] = chatMeta.deletedFor || [];
+          if (deletedFor.includes(userId)) return false;
+          if (deletedSet.has(chatMeta.id)) return false;
+          return true;
+        })
+        .map(({ chatMeta, messages }) => {
         const participantProfiles = chatMeta.participantProfiles || {};
 
         // Find contact profile (the participant that is NOT userId)
@@ -326,7 +405,7 @@ export function subscribeToUserThreads(
     };
   } catch (err) {
     console.warn('Failed to subscribe to Firestore chats:', err);
-    return () => {};
+    return () => { };
   }
 }
 
@@ -425,6 +504,21 @@ export function broadcastUserPresence(payload: {
   }
 }
 
+export function broadcastMessageReaction(payload: {
+  chatId: string;
+  messageId: string;
+  reactions: string[];
+  userId: string;
+}) {
+  if (messageBroadcastChannel) {
+    try {
+      messageBroadcastChannel.postMessage({ type: 'MESSAGE_REACTION_UPDATE', ...payload });
+    } catch (e) {
+      console.warn('Broadcast channel reaction error:', e);
+    }
+  }
+}
+
 export function subscribeToBroadcastMessages(
   currentUser: { id?: string; name?: string; username?: string; email?: string } | null,
   onMessageReceived: (payload: {
@@ -440,13 +534,21 @@ export function subscribeToBroadcastMessages(
   onPollVote?: (payload: { chatId: string; messageId: string; poll: PollPayload }) => void,
   onTypingStatus?: (payload: { chatId: string; senderId: string; isTyping: boolean }) => void,
   onPresenceUpdate?: (payload: { userId: string; status: 'online' | 'offline'; lastSeen?: string }) => void,
-  onDeleteMessage?: (payload: { chatId: string; messageId: string; deleteType: 'forMe' | 'forEveryone' }) => void
+  onDeleteMessage?: (payload: { chatId: string; messageId: string; deleteType: 'forMe' | 'forEveryone' }) => void,
+  onReactionUpdate?: (payload: { chatId: string; messageId: string; reactions: string[] }) => void
 ) {
-  if (!messageBroadcastChannel || !currentUser) return () => {};
+  if (!messageBroadcastChannel || !currentUser) return () => { };
 
   const handleMessage = (event: MessageEvent) => {
     const data = event.data;
     if (!data) return;
+
+    if (data.type === 'MESSAGE_REACTION_UPDATE') {
+      if (data.userId !== currentUser.id && onReactionUpdate) {
+        onReactionUpdate({ chatId: data.chatId, messageId: data.messageId, reactions: data.reactions });
+      }
+      return;
+    }
 
     if (data.type === 'MESSAGE_DELETE_UPDATE') {
       if (onDeleteMessage) {

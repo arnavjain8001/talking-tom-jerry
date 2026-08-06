@@ -23,7 +23,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
   return (
     <div
-      className={`h-16 px-4 md:px-6 border-b flex items-center justify-between shrink-0 transition-colors z-10 ${
+      className={`sticky top-0 z-30 h-16 px-4 md:px-6 border-b flex items-center justify-between shrink-0 transition-colors backdrop-blur-md ${
         isDarkMode
           ? 'bg-slate-900/95 border-slate-800 text-slate-100'
           : 'bg-white/95 border-slate-200 text-slate-800 shadow-2xs'
@@ -33,10 +33,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={onBack}
-          className={`p-2 rounded-full md:hidden transition-colors ${
+          className={`p-2 rounded-full transition-colors ${
             isDarkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-600'
           }`}
-          aria-label="Back to messages"
+          aria-label="Back to chat list"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
